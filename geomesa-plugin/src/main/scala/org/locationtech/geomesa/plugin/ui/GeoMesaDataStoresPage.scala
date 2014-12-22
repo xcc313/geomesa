@@ -222,8 +222,8 @@ object GeoMesaDataStoresPage {
   def getTableMetadata(connector: Connector, featureName: String, tableName: String, tableId: String, displayName: String): TableMetadata = {
     // TODO move this to core utility class where it can be re-used
 
-    val scanner = new IsolatedScanner(connector.createScanner(Constants.METADATA_TABLE_NAME, Constants.NO_AUTHS))
-    scanner.fetchColumnFamily(Constants.METADATA_DATAFILE_COLUMN_FAMILY)
+    val scanner = new IsolatedScanner(connector.createScanner(null, Constants.NO_AUTHS))
+//    scanner.fetchColumnFamily(Constants.METADATA_DATAFILE_COLUMN_FAMILY)
     scanner.setRange(new KeyExtent(new Text(tableId), null, null).toMetadataRange())
 
     var fileSize:Long = 0
