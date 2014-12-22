@@ -59,4 +59,8 @@ class ExplainingScanner(output: ExplainerOutputType) extends Scanner {
   override def enableIsolation(): Unit = {}
 
   override def disableIsolation(): Unit = {}
+
+  override def getReadaheadThreshold = ???
+
+  override def setReadaheadThreshold(l: Long) = ???
 }

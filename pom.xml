@@ -46,7 +46,7 @@
 
         <!-- environment-dependent versions -->
         <zookeeper.version>3.4.5</zookeeper.version>
-        <accumulo.version>1.5.1</accumulo.version>
+        <accumulo.version>1.6.0</accumulo.version>
         <hadoop.version>2.2.0</hadoop.version>
         <scalding.version>0.11.2</scalding.version>
 

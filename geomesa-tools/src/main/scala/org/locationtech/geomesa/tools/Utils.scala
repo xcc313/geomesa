@@ -135,7 +135,7 @@ trait AccumuloProperties extends GetPassword with Logging {
     .getOrElse("/accumulo")
 
   lazy val instanceIdStr =
-    Try(ZooKeeperInstance.getInstanceIDFromHdfs(new Path(instanceDfsDir, "instance_id"))) match {
+    Try(/*ZooKeeperInstance.getInstanceIDFromHdfs(new Path(instanceDfsDir, "instance_id"))*/"") match {
       case Success(value) => value
       case Failure(ex) =>
         throw new Exception("Error retrieving /accumulo/instance_id from HDFS. To resolve this, double check that " +
