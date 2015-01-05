@@ -21,13 +21,13 @@
          xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>geomesa-accumulo1.5</artifactId>
+        <artifactId>geomesa-accumulo1.6</artifactId>
         <groupId>org.locationtech.geomesa</groupId>
         <version>1.0.0-rc.2-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>geomesa-minicluster-accumulo1.5</artifactId>
+    <artifactId>geomesa-minicluster-accumulo1.6</artifactId>
     <name>GeoMesa MiniCluster - [Accumulo 1.5.x]</name>
 
     <properties>
@@ -42,15 +42,15 @@
 
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
-            <artifactId>geomesa-core-accumulo1.5</artifactId>
+            <artifactId>geomesa-core-accumulo1.6</artifactId>
         </dependency>
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
-            <artifactId>geomesa-utils-accumulo1.5</artifactId>
+            <artifactId>geomesa-utils-accumulo1.6</artifactId>
         </dependency>
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
-            <artifactId>geomesa-tools-accumulo1.5</artifactId>
+            <artifactId>geomesa-tools-accumulo1.6</artifactId>
         </dependency>
 
         <dependency>
