@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>geomesa-accumulo1.5</artifactId>
+        <artifactId>geomesa-accumulo1.6</artifactId>
         <groupId>org.locationtech.geomesa</groupId>
         <version>1.0.0-rc.3-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>geomesa-feature-accumulo1.5</artifactId>
+    <artifactId>geomesa-feature-accumulo1.6</artifactId>
     <name>GeoMesa Avro SimpleFeature - [Accumulo 1.5.x]</name>
 
     <dependencies>
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
-            <artifactId>geomesa-utils-accumulo1.5</artifactId>
+            <artifactId>geomesa-utils-accumulo1.6</artifactId>
         </dependency>
         <dependency>
             <groupId>org.scala-lang</groupId>

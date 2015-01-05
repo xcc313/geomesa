@@ -18,12 +18,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <groupId>org.locationtech.geomesa</groupId>
-        <artifactId>geomesa-accumulo1.5</artifactId>
+        <artifactId>geomesa-accumulo1.6</artifactId>
         <version>1.0.0-rc.3-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>geomesa-jobs-accumulo1.5</artifactId>
+    <artifactId>geomesa-jobs-accumulo1.6</artifactId>
     <name>GeoMesa Jobs - [Accumulo 1.5.x]</name>
 
     <properties>
@@ -33,7 +33,7 @@
     <dependencies>
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
-            <artifactId>geomesa-core-accumulo1.5</artifactId>
+            <artifactId>geomesa-core-accumulo1.6</artifactId>
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -121,7 +121,7 @@
         </dependency>
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
-            <artifactId>geomesa-core-accumulo1.5</artifactId>
+            <artifactId>geomesa-core-accumulo1.6</artifactId>
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>

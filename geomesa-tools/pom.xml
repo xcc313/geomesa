@@ -19,12 +19,12 @@
 
     <parent>
         <groupId>org.locationtech.geomesa</groupId>
-        <artifactId>geomesa-accumulo1.5</artifactId>
+        <artifactId>geomesa-accumulo1.6</artifactId>
         <version>1.0.0-rc.3-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>geomesa-tools-accumulo1.5</artifactId>
+    <artifactId>geomesa-tools-accumulo1.6</artifactId>
     <name>GeoMesa Tools - [Accumulo 1.5.x]</name>
 
     <properties>
@@ -34,15 +34,15 @@
     <dependencies>
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
-            <artifactId>geomesa-core-accumulo1.5</artifactId>
+            <artifactId>geomesa-core-accumulo1.6</artifactId>
         </dependency>
         <dependency>
            <groupId>org.locationtech.geomesa</groupId>
-           <artifactId>geomesa-jobs-accumulo1.5</artifactId>
+           <artifactId>geomesa-jobs-accumulo1.6</artifactId>
        </dependency>
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
-            <artifactId>geomesa-utils-accumulo1.5</artifactId>
+            <artifactId>geomesa-utils-accumulo1.6</artifactId>
         </dependency>
         <dependency>
             <groupId>org.scala-lang</groupId>
@@ -91,6 +91,10 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.accumulo</groupId>
+            <artifactId>accumulo-server-base</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.accumulo</groupId>

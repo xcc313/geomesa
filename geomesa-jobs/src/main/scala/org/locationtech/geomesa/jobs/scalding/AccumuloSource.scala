@@ -24,6 +24,7 @@ import cascading.tuple._
 import com.twitter.scalding._
 import com.typesafe.scalalogging.slf4j.Logging
 import org.apache.accumulo.core.client.mapred.{AccumuloInputFormat, AccumuloOutputFormat, InputFormatBase}
+import org.apache.accumulo.core.client.mapreduce.lib.impl.InputConfigurator
 import org.apache.accumulo.core.client.mapreduce.lib.util.ConfiguratorBase
 import org.apache.accumulo.core.client.security.tokens.PasswordToken
 import org.apache.accumulo.core.client.{BatchWriterConfig, IteratorSetting, ZooKeeperInstance}
@@ -177,12 +178,10 @@ class AccumuloScheme(val options: AccumuloSourceOptions)
   override def sourceConfInit(fp: FlowProcess[JobConf], tap: AccTap, conf: JobConf) {
     // this method may be called more than once so check to see if we've already configured
     if (!ConfiguratorBase.isConnectorInfoSet(classOf[AccumuloInputFormat], conf)) {
-//      InputFormatBase.setZooKeeperInstance(conf, options.instance, options.zooKeepers)
-//      InputFormatBase.setConnectorInfo(conf,
-//                                       options.user,
-//                                       new PasswordToken(options.password.getBytes()))
-//      InputFormatBase.setInputTableName(conf, options.input.table)
-//      InputFormatBase.setScanAuthorizations(conf, options.input.authorizations)
+      ConfiguratorBase.setZooKeeperInstance(classOf[AccumuloInputFormat], conf, options.instance, options.zooKeepers)
+      ConfiguratorBase.setConnectorInfo(classOf[AccumuloInputFormat], conf, options.user, new PasswordToken(options.password.getBytes))
+      InputFormatBase.setInputTableName(conf, options.input.table)
+      InputConfigurator.setScanAuthorizations(classOf[AccumuloInputFormat], conf, options.input.authorizations)
       options.input.ranges.foreach(r => InputFormatBase.setRanges(conf, r.asJava))
       options.input.columns.foreach(c => InputFormatBase.fetchColumns(conf, c.asJava))
       options.input.iterators.foreach(InputFormatBase.addIterator(conf, _))
@@ -190,7 +189,7 @@ class AccumuloScheme(val options: AccumuloSourceOptions)
       options.input.localIterators.foreach(InputFormatBase.setLocalIterators(conf, _))
       options.input.offlineTableScan.foreach(InputFormatBase.setOfflineTableScan(conf, _))
       options.input.scanIsolation.foreach(InputFormatBase.setScanIsolation(conf, _))
-//      options.input.logLevel.foreach(InputFormatBase.setLogLevel(conf, _))
+      options.input.logLevel.foreach(ConfiguratorBase.setLogLevel(classOf[AccumuloInputFormat], conf, _))
     }
 
     conf.setInputFormat(classOf[AccumuloInputFormat])

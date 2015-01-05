@@ -18,7 +18,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.locationtech.geomesa</groupId>
-    <artifactId>geomesa-accumulo1.5</artifactId>
+    <artifactId>geomesa-accumulo1.6</artifactId>
     <version>1.0.0-rc.3-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>GeoMesa - [Accumulo 1.5.x]</name>
@@ -46,7 +46,7 @@
 
         <!-- environment-dependent versions -->
         <zookeeper.version>3.4.5</zookeeper.version>
-        <accumulo.version>1.6.0</accumulo.version>
+        <accumulo.version>1.6.1</accumulo.version>
         <hadoop.version>2.2.0</hadoop.version>
         <scalding.version>0.11.2</scalding.version>
 
@@ -68,7 +68,7 @@
         <maven.test.jvmargs>-Xms1g -Xmx2g -XX:MaxPermSize=1024m -XX:-UseGCOverheadLimit</maven.test.jvmargs>
         <fork.mode>once</fork.mode>
         <avro.version>1.7.5</avro.version>
-        <accumuloSuffix>accumulo1.5</accumuloSuffix>
+        <accumuloSuffix>accumulo1.6</accumuloSuffix>
     </properties>
 
     <profiles>
@@ -449,70 +449,70 @@
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-core-accumulo1.5</artifactId>
+                <artifactId>geomesa-core-accumulo1.6</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-core-accumulo1.5</artifactId>
+                <artifactId>geomesa-core-accumulo1.6</artifactId>
                 <version>${project.version}</version>
                 <type>test-jar</type>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-utils-accumulo1.5</artifactId>
+                <artifactId>geomesa-utils-accumulo1.6</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-filter-accumulo1.5</artifactId>
+                <artifactId>geomesa-filter-accumulo1.6</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-plugin-accumulo1.5</artifactId>
+                <artifactId>geomesa-plugin-accumulo1.6</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-plugin-accumulo1.5</artifactId>
+                <artifactId>geomesa-plugin-accumulo1.6</artifactId>
                 <classifier>geoserver-plugin</classifier>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-distributed-runtime-accumulo1.5</artifactId>
+                <artifactId>geomesa-distributed-runtime-accumulo1.6</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-feature-accumulo1.5</artifactId>
+                <artifactId>geomesa-feature-accumulo1.6</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-tools-accumulo1.5</artifactId>
+                <artifactId>geomesa-tools-accumulo1.6</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-jobs-accumulo1.5</artifactId>
+                <artifactId>geomesa-jobs-accumulo1.6</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-compute-accumulo1.5</artifactId>
+                <artifactId>geomesa-compute-accumulo1.6</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-compute-accumulo1.5</artifactId>
+                <artifactId>geomesa-compute-accumulo1.6</artifactId>
                 <classifier>shaded</classifier>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.locationtech.geomesa</groupId>
-                <artifactId>geomesa-assemble-accumulo1.5</artifactId>
+                <artifactId>geomesa-assemble-accumulo1.6</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -622,6 +622,12 @@
                 <artifactId>accumulo-server</artifactId>
                 <version>${accumulo.version}</version>
                 <classifier>source</classifier>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.accumulo</groupId>
+                <artifactId>accumulo-server-base</artifactId>
+                <version>${accumulo.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
