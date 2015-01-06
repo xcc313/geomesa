@@ -18,9 +18,11 @@ package org.locationtech.geomesa.plugin.persistence
 
 import java.io.{File, FileInputStream, FileOutputStream}
 import java.util.Properties
+import javax.servlet.ServletContext
 
 import com.typesafe.scalalogging.slf4j.Logging
-import org.vfny.geoserver.global.GeoserverDataDirectory
+import org.geoserver.platform.GeoServerResourceLoader
+import org.glassfish.grizzly.servlet.ServletContextImpl
 
 /**
  * Simple persistence strategy that keeps values in memory and writes them to a prop file in the
@@ -32,7 +34,10 @@ object PersistenceUtil extends Logging {
 
   // this method searches the classpath as well as the data directory, so don't use a package name
   // like 'geomesa'
-  private val geoMesaConfigDir = GeoserverDataDirectory.findCreateConfigDir("geomesa-config")
+  private val geoMesaConfigDir = {
+    val gsDataDir = GeoServerResourceLoader.lookupGeoServerDataDirectory(new ServletContextImpl)
+    new GeoServerResourceLoader().findOrCreateDirectory(gsDataDir, "geomesa-config")
+  }
 
   private val configFile = new File(geoMesaConfigDir, "geomesa-config.properties")
 

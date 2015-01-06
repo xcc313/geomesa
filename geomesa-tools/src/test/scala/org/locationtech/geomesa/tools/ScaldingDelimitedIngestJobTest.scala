@@ -478,7 +478,7 @@ class ScaldingDelimitedIngestJobTest extends Specification{
           "true, false, true",
           "12345678-1234-1234-1234-123456789012,00000000-0000-0000-0000-000000000000",
           "2014-01-01,2014-01-02, 2014-01-03",
-          "Point(1 2)").map(quote + _ + quote).mkString(delim)
+          "POINT(1 2)").map(quote + _ + quote).mkString(delim)
 
         val f1 = new AvroSimpleFeature(new FeatureIdImpl(featureName), sft)
         ingest.ingestDataToFeature(testString, f1)
