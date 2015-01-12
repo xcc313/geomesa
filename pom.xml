@@ -47,7 +47,8 @@
         <!-- environment-dependent versions -->
         <zookeeper.version>3.4.5</zookeeper.version>
         <accumulo.version>1.6.1</accumulo.version>
-        <hadoop.version>2.2.0</hadoop.version>
+        <hadoop.version>2.5.0-mr1-cdh5.3.0</hadoop.version>
+        <!--<hadoop.version>2.2.0</hadoop.version>-->
         <scalding.version>0.11.2</scalding.version>
 
         <!-- logging properties
@@ -969,6 +970,10 @@
             <id>conjars.org</id>
             <url>http://conjars.org/repo</url>
         </repository>
+   <repository>
+      <id>cloudera</id>
+      <url>https://repository.cloudera.com/artifactory/cloudera-repos/</url>
+    </repository>
     </repositories>
 
 </project>
