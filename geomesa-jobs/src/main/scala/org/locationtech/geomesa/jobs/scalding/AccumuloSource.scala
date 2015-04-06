@@ -24,7 +24,7 @@ import cascading.tuple._
 import com.twitter.scalding._
 import com.typesafe.scalalogging.slf4j.Logging
 import org.apache.accumulo.core.client.ZooKeeperInstance
-import org.apache.accumulo.core.client.mapred.{AccumuloInputFormat, AccumuloOutputFormat, InputFormatBase}
+import org.apache.accumulo.core.client.mapred.{AbstractInputFormat, AccumuloInputFormat, AccumuloOutputFormat, InputFormatBase}
 import org.apache.accumulo.core.client.mapreduce.lib.util.ConfiguratorBase
 import org.apache.accumulo.core.client.security.tokens.PasswordToken
 import org.apache.accumulo.core.data.{Key, Mutation, Range => AcRange, Value}
@@ -153,10 +153,10 @@ class AccumuloScheme(val options: AccumuloSourceOptions)
 
     // this method may be called more than once so check to see if we've already configured
     if (!ConfiguratorBase.isConnectorInfoSet(classOf[AccumuloInputFormat], conf)) {
-      InputFormatBase.setZooKeeperInstance(conf, input.instance, input.zooKeepers)
-      InputFormatBase.setConnectorInfo(conf, input.user, new PasswordToken(input.password.getBytes()))
+      AbstractInputFormat.setZooKeeperInstance(conf, input.instance, input.zooKeepers)
+      AbstractInputFormat.setConnectorInfo(conf, input.user, new PasswordToken(input.password.getBytes()))
       InputFormatBase.setInputTableName(conf, input.table)
-      InputFormatBase.setScanAuthorizations(conf, input.authorizations)
+      AbstractInputFormat.setScanAuthorizations(conf, input.authorizations)
       if (!input.ranges.isEmpty) {
         val ranges = input.ranges.collect { case SerializedRangeSeq(ranges) => ranges }
         InputFormatBase.setRanges(conf, ranges)
@@ -170,7 +170,7 @@ class AccumuloScheme(val options: AccumuloSourceOptions)
       input.localIterators.foreach(InputFormatBase.setLocalIterators(conf, _))
       input.offlineTableScan.foreach(InputFormatBase.setOfflineTableScan(conf, _))
       input.scanIsolation.foreach(InputFormatBase.setScanIsolation(conf, _))
-      input.logLevel.foreach(InputFormatBase.setLogLevel(conf, _))
+      input.logLevel.foreach(AbstractInputFormat.setLogLevel(conf, _))
     }
 
     conf.setInputFormat(classOf[AccumuloInputFormat])

@@ -122,6 +122,8 @@ class GeoMesaSparkTest extends Specification with Logging {
     }
 
     "Read data" in {
+      shutdown()
+
       val typeName = s"sparktest${UUID.randomUUID().toString}"
       val sft = createSFT(typeName)
 
@@ -143,6 +145,8 @@ class GeoMesaSparkTest extends Specification with Logging {
     }
 
     "Write data" in {
+      shutdown()
+
       val typeName = s"sparktest${UUID.randomUUID().toString}"
       val sft = createSFT(typeName)
       ds.createSchema(sft)

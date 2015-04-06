@@ -19,13 +19,13 @@
 
     <parent>
         <groupId>org.locationtech.geomesa</groupId>
-        <artifactId>geomesa-accumulo1.5</artifactId>
+        <artifactId>geomesa-accumulo1.6</artifactId>
         <version>1.0.0-rc.6-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>geomesa-tools-accumulo1.5</artifactId>
-    <name>GeoMesa Tools - [Accumulo 1.5.x]</name>
+    <artifactId>geomesa-tools-accumulo1.6</artifactId>
+    <name>GeoMesa Tools - [Accumulo 1.6.x]</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -34,15 +34,15 @@
     <dependencies>
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
-            <artifactId>geomesa-core-accumulo1.5</artifactId>
+            <artifactId>geomesa-core-accumulo1.6</artifactId>
         </dependency>
         <dependency>
            <groupId>org.locationtech.geomesa</groupId>
-           <artifactId>geomesa-jobs-accumulo1.5</artifactId>
+           <artifactId>geomesa-jobs-accumulo1.6</artifactId>
        </dependency>
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
-            <artifactId>geomesa-utils-accumulo1.5</artifactId>
+            <artifactId>geomesa-utils-accumulo1.6</artifactId>
         </dependency>
         <dependency>
             <groupId>org.scala-lang</groupId>
@@ -94,11 +94,21 @@
         </dependency>
         <dependency>
             <groupId>org.apache.accumulo</groupId>
+            <artifactId>accumulo-server-base</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.accumulo</groupId>
             <artifactId>accumulo-start</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jboss.netty</groupId>
+                    <artifactId>netty</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>javax.media</groupId>

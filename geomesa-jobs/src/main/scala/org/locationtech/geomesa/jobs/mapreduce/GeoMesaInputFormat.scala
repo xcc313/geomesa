@@ -20,7 +20,7 @@ import java.io.{DataInput, DataOutput}
 import java.lang.Float._
 
 import com.typesafe.scalalogging.slf4j.Logging
-import org.apache.accumulo.core.client.mapreduce.{AccumuloInputFormat, InputFormatBase, RangeInputSplit}
+import org.apache.accumulo.core.client.mapreduce.{AbstractInputFormat, AccumuloInputFormat, InputFormatBase, RangeInputSplit}
 import org.apache.accumulo.core.client.security.tokens.PasswordToken
 import org.apache.accumulo.core.data.{Key, Value}
 import org.apache.accumulo.core.security.Authorizations
@@ -62,14 +62,14 @@ object GeoMesaInputFormat extends Logging {
     // set up the underlying accumulo input format
     val user = AccumuloDataStoreFactory.params.userParam.lookUp(dsParams).asInstanceOf[String]
     val password = AccumuloDataStoreFactory.params.passwordParam.lookUp(dsParams).asInstanceOf[String]
-    InputFormatBase.setConnectorInfo(job, user, new PasswordToken(password.getBytes()))
+    AbstractInputFormat.setConnectorInfo(job, user, new PasswordToken(password.getBytes()))
 
     val instance = AccumuloDataStoreFactory.params.instanceIdParam.lookUp(dsParams).asInstanceOf[String]
     val zookeepers = AccumuloDataStoreFactory.params.zookeepersParam.lookUp(dsParams).asInstanceOf[String]
-    InputFormatBase.setZooKeeperInstance(job, instance, zookeepers)
+    AbstractInputFormat.setZooKeeperInstance(job, instance, zookeepers)
 
     val auths = Option(AccumuloDataStoreFactory.params.authsParam.lookUp(dsParams).asInstanceOf[String])
-    auths.foreach(a => InputFormatBase.setScanAuthorizations(job, new Authorizations(a.split(","): _*)))
+    auths.foreach(a => AbstractInputFormat.setScanAuthorizations(job, new Authorizations(a.split(","): _*)))
 
     // run an explain query to set up the iterators, ranges, etc
     val ecql = filter.map(ECQL.toFilter).getOrElse(Filter.INCLUDE)
