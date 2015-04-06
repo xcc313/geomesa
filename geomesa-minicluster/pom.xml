@@ -23,7 +23,7 @@
     <parent>
         <artifactId>geomesa-accumulo1.6</artifactId>
         <groupId>org.locationtech.geomesa</groupId>
-        <version>1.0.0-rc.2-SNAPSHOT</version>
+        <version>1.0.0-rc.6-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -72,6 +72,12 @@
             <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper</artifactId>
             <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jboss.netty</groupId>
+                    <artifactId>netty</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.hadoop</groupId>
