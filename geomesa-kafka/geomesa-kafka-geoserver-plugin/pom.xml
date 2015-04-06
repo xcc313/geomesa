@@ -8,7 +8,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>geomesa-kafka-geoserver-plugin-accumulo1.5</artifactId>
-    <name>GeoMesa Kafka Geoserver Plugin [Accumulo 1.5.x]</name>
+    <name>GeoMesa Kafka Geoserver Plugin [Accumulo 1.6.x]</name>
 
     <dependencies>
         <dependency>

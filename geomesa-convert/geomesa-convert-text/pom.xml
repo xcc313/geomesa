@@ -24,7 +24,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>geomesa-convert-text-accumulo1.5</artifactId>
-    <name>GeoMesa Convert Text - [Accumulo 1.5.x]</name>
+    <name>GeoMesa Convert Text - [Accumulo 1.6.x]</name>
 
     <dependencies>
         <dependency>
