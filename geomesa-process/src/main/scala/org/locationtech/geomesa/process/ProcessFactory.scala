@@ -23,6 +23,7 @@ class ProcessFactory
     Text.text("GeoMesa Process Factory"),
     "geomesa",
     classOf[DensityProcess],
+    classOf[Point2PointProcess],
     classOf[TemporalDensityProcess],
     classOf[TubeSelectProcess],
     classOf[ProximitySearchProcess],

@@ -1,7 +1,8 @@
 package org.locationtech.geomesa.jobs.mapred
 
-import org.apache.accumulo.core.client.mapred.AccumuloInputFormat
-import org.apache.accumulo.core.client.security.tokens.PasswordToken
+import org.apache.accumulo.core.client.mapred.{InputFormatBase, AccumuloInputFormat}
+import org.apache.accumulo.core.client.security.tokens.{AuthenticationToken, PasswordToken}
+import org.apache.accumulo.core.data.Key
 import org.apache.accumulo.core.security.Authorizations
 import org.apache.hadoop.mapred.JobConf
 import org.apache.hadoop.mapreduce.Job
@@ -17,7 +18,8 @@ object InputFormatBaseAdapter {
   }
 
   def setConnectorInfo15(job: JobConf, user: String, token: PasswordToken) = {
-    val method = classOf[AccumuloInputFormat].getMethod("setConnectorInfo", classOf[Job], classOf[String], classOf[PasswordToken])
+    //val method = classOf[InputFormatBase[Key, org.apache.accumulo.core.data.Value]].getMethod("setConnectorInfo", classOf[JobConf], classOf[String], classOf[AuthenticationToken])
+    val method = classOf[AccumuloInputFormat].getMethod("setConnectorInfo", classOf[JobConf], classOf[String], classOf[AuthenticationToken])
     method.invoke(null, job, user, token)
   }
 
@@ -33,7 +35,7 @@ object InputFormatBaseAdapter {
   }
 
   def setZooKeeperInstance15(job: JobConf, instance: String, zookeepers: String) = {
-    val method = classOf[AccumuloInputFormat].getMethod("setZooKeeperInstance", classOf[Job], classOf[String], classOf[String])
+    val method = classOf[AccumuloInputFormat].getMethod("setZooKeeperInstance", classOf[JobConf], classOf[String], classOf[String])
     method.invoke(null, job, instance, zookeepers)
   }
 
