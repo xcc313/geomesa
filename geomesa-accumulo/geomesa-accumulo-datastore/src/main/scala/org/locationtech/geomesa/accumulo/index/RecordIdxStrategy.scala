@@ -43,7 +43,7 @@ object RecordIdxStrategy extends StrategyProvider {
 
 class RecordIdxStrategy(val filter: QueryFilter) extends Strategy with Logging {
 
-  override def getQueryPlans(queryPlanner: QueryPlanner, hints: Hints, output: ExplainerOutputType) = {
+  override def getQueryPlan(queryPlanner: QueryPlanner, hints: Hints, output: ExplainerOutputType) = {
 
     val sft = queryPlanner.sft
     val acc = queryPlanner.acc
@@ -52,8 +52,9 @@ class RecordIdxStrategy(val filter: QueryFilter) extends Strategy with Logging {
 
     val ranges = if (filter.primary.forall(_ == Filter.INCLUDE)) {
       // allow for full table scans - we use the record index for queries that can't be satisfied elsewhere
-      logger.warn(s"Running full table scan for schema ${sft.getTypeName} with filter " +
-          s"${filter.secondary.map(filterToString).getOrElse("INCLUDE")}")
+      filter.secondary.foreach { f =>
+        logger.warn(s"Running full table scan for schema ${sft.getTypeName} with filter ${filterToString(f)}")
+      }
       val start = new Text(prefix)
       Seq(new aRange(start, true, aRange.followingPrefix(start), false))
     } else {
@@ -73,7 +74,7 @@ class RecordIdxStrategy(val filter: QueryFilter) extends Strategy with Logging {
     val table = acc.getTableName(sft.getTypeName, RecordTable)
     val threads = acc.getSuggestedThreads(sft.getTypeName, RecordTable)
 
-    val plan = if (sft.getSchemaVersion > 5) {
+    if (sft.getSchemaVersion > 5) {
       // optimized path when we know we're using kryo serialization
       val priority = 25
       if (hints.isBinQuery) {
@@ -103,7 +104,5 @@ class RecordIdxStrategy(val filter: QueryFilter) extends Strategy with Logging {
       }
       BatchScanPlan(table, ranges, iters, Seq.empty, kvsToFeatures, threads, hasDuplicates = false)
     }
-
-    Seq(plan)
   }
 }
