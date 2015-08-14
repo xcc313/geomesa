@@ -1,20 +1,27 @@
 package org.locationtech.geomesa.process
 
+import java.util.Date
+
 import com.vividsolutions.jts.geom.Point
 import org.geotools.data.DataUtilities
 import org.geotools.data.simple.SimpleFeatureCollection
-import org.geotools.feature.simple.SimpleFeatureBuilder
+import org.geotools.feature.simple.{SimpleFeatureBuilder, SimpleFeatureTypeBuilder}
 import org.geotools.geometry.jts.{JTS, JTSFactoryFinder}
 import org.geotools.process.factory.{DescribeParameter, DescribeProcess, DescribeResult}
 import org.geotools.process.vector.VectorProcess
 import org.geotools.referencing.crs.DefaultGeographicCRS
 import org.joda.time.DateTime
+import org.joda.time.DateTime.Property
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
+import org.opengis.feature.`type`.GeometryType
+import org.opengis.feature.simple.SimpleFeature
+
+import scala.util.Try
 
 @DescribeProcess(title = "Point2PointProcess", description = "Aggregates a collection of points into a linestring.")
 class Point2PointProcess extends VectorProcess {
 
-  private val sft = SimpleFeatureTypes.createType("geomesa", "point2point", "length:Double,geom:LineString:srid=4326")
+  private val baseType = SimpleFeatureTypes.createType("geomesa", "point2point", "length:Double,*ls:LineString:srid=4326")
   private val gf = JTSFactoryFinder.getGeometryFactory
 
   @DescribeResult(name = "result", description = "Aggregated feature collection")
@@ -38,6 +45,18 @@ class Point2PointProcess extends VectorProcess {
                ): SimpleFeatureCollection = {
 
     import org.locationtech.geomesa.utils.geotools.Conversions._
+
+    import scala.collection.JavaConversions._
+
+    val queryType = data.getSchema
+    val sftBuilder = new SimpleFeatureTypeBuilder()
+    sftBuilder.init(baseType)
+    queryType.getAttributeDescriptors
+      .filterNot { _.getType.isInstanceOf[GeometryType] }
+      .foreach { attr => sftBuilder.add(attr) }
+
+    val sft = sftBuilder.buildFeatureType()
+
     val builder = new SimpleFeatureBuilder(sft)
 
     val groupingFieldIndex = data.getSchema.indexOf(groupingField)
@@ -53,18 +72,27 @@ class Point2PointProcess extends VectorProcess {
 
         val groups =
           if(!breakOnDay) Array(globalSorted)
-          else globalSorted.groupBy { f => new DateTime(f.get(sortFieldIndex).asInstanceOf[java.util.Date]).dayOfYear() }.map { case (_, g) => g }.toArray
+          else
+            globalSorted
+              .groupBy { f => getDayOfYear(sortFieldIndex, f) }
+              .filter { case (_, g) => g.size >= 2 }  // need at least two points in a day to create a
+              .map { case (_, g) => g }.toArray
 
-        groups.map { sorted =>
-          val pts = sorted.map(_.getDefaultGeometry.asInstanceOf[Point].getCoordinate)
-          val ls = gf.createLineString(pts.toArray)
-          val length = pts.sliding(2, 1).map { case List(s, e) => JTS.orthodromicDistance(s, e, DefaultGeographicCRS.WGS84) }.sum
-          val sf = builder.buildFeature(group)
-          sf.setAttributes(Array[AnyRef](Double.box(length), ls))
-          sf
+        groups.flatMap { sorted =>
+          Try {
+            val pts = sorted.map(_.getDefaultGeometry.asInstanceOf[Point].getCoordinate)
+            val ls = gf.createLineString(pts.toArray)
+            val length = pts.sliding(2, 1).map { case List(s, e) => JTS.orthodromicDistance(s, e, DefaultGeographicCRS.WGS84) }.sum
+            val sf = builder.buildFeature(group)
+            sf.setAttributes(Array[AnyRef](Double.box(length), ls) ++ sorted.head.getAttributes)
+            sf
+          }.toOption
         }
       }
 
     DataUtilities.collection(lineFeatures.toArray)
   }
+
+  def getDayOfYear(sortFieldIndex: Int, f: SimpleFeature): Property =
+    new DateTime(f.getAttribute(sortFieldIndex).asInstanceOf[Date]).dayOfYear()
 }
