@@ -29,5 +29,7 @@ class ProcessFactory
     classOf[ProximitySearchProcess],
     classOf[QueryProcess],
     classOf[KNearestNeighborSearchProcess],
-    classOf[UniqueProcess]
+    classOf[UniqueProcess],
+    classOf[HashAttributeProcess],
+    classOf[HashAttributeColorProcess]
   )
