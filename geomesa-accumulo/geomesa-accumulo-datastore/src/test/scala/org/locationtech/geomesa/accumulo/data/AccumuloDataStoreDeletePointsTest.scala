@@ -33,7 +33,7 @@ import org.specs2.runner.JUnitRunner
 import scala.collection.JavaConversions._
 
 @RunWith(classOf[JUnitRunner])
-class AccumuloDataStoreDeleteTest extends Specification with TestWithDataStore {
+class AccumuloDataStoreDeletePointsTest extends Specification with TestWithDataStore {
 
   sequential
 
