@@ -50,7 +50,7 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
   sequential
 
   import TestType._
-  var test: TestType = TestPoint
+  var test: TestType = TestPoint_Nad
 
   override def spec: String = getTestSpec(test)
 
@@ -102,13 +102,17 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
     coll
   }
 
-  "dummy" should {
-    "delete this" >> {
-      val cn = getClass.getSimpleName
-      println(s"\n\n[$cn STRATEGIES]\n\tt:  $TemporalStrategyOpt\n\ta:  $AgeStrategyOpt\n\tn:  $NameStrategyOpt\n\tg:  $GeospatialStrategyOpt\n")
-      1 must equalTo(1)
-    }
-  }
+  val MinX = geomToIndex(0).getCoordinate.x - 0.1
+  val MaxX = geomToIndex(BaseData.size - 1).getCoordinate.x + 0.1
+  val MinY = geomToIndex(0).getCoordinate.y - 0.1
+  val MaxY = geomToIndex(BaseData.size - 1).getCoordinate.y + 0.1
+  val AllBBOX = s"BBOX(geom, $MinX, $MinY, $MaxX, $MaxY)"
+
+  val MinDate = new Date(dateToIndex(0).getTime() - 1)
+  val MaxDate = new Date(dateToIndex(BaseData.size - 1).getTime() + 1)
+  val AllDuring = s"dtg DURING ${sdf2.format(MinDate)}/${sdf2.format(MaxDate)}"
+
+  val AllAges = s"age BETWEEN ${BaseData.map(_._2).min - 5} AND ${BaseData.map(_._2).max + 5}"
 
   val lock = new Object()
 
@@ -122,7 +126,7 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
 
     /* turn will into billy */
     val filter = CQL.toFilter("name = 'will'")
-    fs.modifyFeatures(Array("name", "age"), Array("billy", 25.asInstanceOf[AnyRef]), filter)
+    fs.modifyFeatures(Array("name", "age"), Array("billy", 29.asInstanceOf[AnyRef]), filter)
 
     /* delete george */
     val deleteFilter = CQL.toFilter("name = 'george'")
@@ -149,7 +153,7 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
       } else {
         features must haveSize(4)
         features.map(f => (f.getAttribute("name"), f.getAttribute("age"))) must
-          containTheSameElementsAs(Seq(("billy", 25), ("sue", 99), ("karen", 50), ("bob", 56)))
+          containTheSameElementsAs(Seq(("billy", 29), ("sue", 99), ("karen", 50), ("bob", 56)))
         features.map(f => (f.getAttribute("name"), f.getID)) must
           containTheSameElementsAs(Seq(("billy", "fid1"), ("sue", "fid3"), ("karen", "fid4"), ("bob", "fid5")))
       }
@@ -172,13 +176,13 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
     doQuery(Filter.INCLUDE, shouldBeEmpty = false, None)
 
     /* query by BBOX */
-    doQuery(ECQL.toFilter("BBOX(geom, 40, 40, 80, 80)"), shouldBeEmpty = false, GeospatialStrategyOpt)
+    doQuery(ECQL.toFilter(AllBBOX), shouldBeEmpty = false, GeospatialStrategyOpt)
 
     /* query by TIME */
-    doQuery(ECQL.toFilter(s"dtg DURING 2000-01-01T00:00:00.0Z/2020-12-31T23:59:59.9Z"), shouldBeEmpty = false, TemporalStrategyOpt)
+    doQuery(ECQL.toFilter(AllDuring), shouldBeEmpty = false, TemporalStrategyOpt)
 
     /* query by AGE */
-    doQuery(ECQL.toFilter(s"age BETWEEN 20 AND 100"), shouldBeEmpty = false, AgeStrategyOpt)
+    doQuery(ECQL.toFilter(AllAges), shouldBeEmpty = false, AgeStrategyOpt)
 
     /* query by NAME */
     doQuery(ECQL.toFilter(s"(name < 'george') OR (name > 'george')"), shouldBeEmpty = false, NameStrategyOpt)
@@ -314,9 +318,19 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
       features.map(f => f.getAttribute("name")) must containTheSameElementsAs(Seq("karen", "bob"))
 
       // geometric search
-      val featuresBbox = fs.getFeatures(ECQL.toFilter("BBOX(geom, -170, -80, 170, 80")).features().toSeq
+      val featuresBbox = fs.getFeatures(ECQL.toFilter(AllBBOX)).features().toSeq
       featuresBbox must haveSize(2)
       featuresBbox.map(f => f.getAttribute("name")) must containTheSameElementsAs(Seq("karen", "bob"))
+
+      // date search
+      val featuresDate = fs.getFeatures(ECQL.toFilter(AllDuring)).features().toSeq
+      featuresDate must haveSize(2)
+      featuresDate.map(f => f.getAttribute("name")) must containTheSameElementsAs(Seq("karen", "bob"))
+
+      // age (attribute) search
+      val featuresAge = fs.getFeatures(ECQL.toFilter(AllAges)).features().toSeq
+      featuresAge must haveSize(2)
+      featuresAge.map(f => f.getAttribute("name")) must containTheSameElementsAs(Seq("karen", "bob"))
     } catch {
       case e: Exception =>
         trans.rollback()
@@ -526,27 +540,26 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
     }
   }
 
-  def fullTestSuite = {
-    lock.synchronized {
-      deleteAndRepopulate
-      updateViaECQL
-      removeFeatures
-      addInsideTransaction
-      removeInsideTransaction
-      deleteWhenGeometryChanges
-      deleteWhenDateChanges
-      verifyStartEndTimesAreExcluded
-      ensureIdsEndureWhenSpatialIndexChanges
-      verifyDeleteAddSameKeyWorks
-      createZ3BasedUUIDs
-    }
+  // synchronized, because the class name is used as the feature-type name
+  def fullTestSuite = lock.synchronized {
+    deleteAndRepopulate
+    updateViaECQL
+    removeFeatures
+    addInsideTransaction
+    removeInsideTransaction
+    deleteWhenGeometryChanges
+    deleteWhenDateChanges
+    verifyStartEndTimesAreExcluded
+    ensureIdsEndureWhenSpatialIndexChanges
+    verifyDeleteAddSameKeyWorks
+    createZ3BasedUUIDs
   }
 
   "AccumuloFeatureWriter" should {
     "pass tests for all types" >> {
       val cn = getClass.getSimpleName
 
-      for(aTest <- Seq(TestPoint, TestGeometry, TestGeometry_Af, TestGeometry_Aj, TestGeometry_Df)) yield {
+      for(aTest <- Seq(TestPoint_Nad, TestGeometry_Nad)) yield {
         test = aTest
 
         println(s"\n\n[$cn $test STRATEGIES]\n\tt:  $TemporalStrategyOpt\n\ta:  $AgeStrategyOpt\n\tn:  $NameStrategyOpt\n\tg:  $GeospatialStrategyOpt\n")
@@ -560,7 +573,7 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
 
 object TestType extends Enumeration {
   type TestType = Value
-  val TestPoint, TestGeometry, TestGeometry_Af, TestGeometry_Aj, TestGeometry_Df = Value
+  val TestPoint_Nad, TestGeometry_Nad, TestGeometry_NAd, TestGeometry_NaD = Value
 
   def buildSpec(nameIndex: String = "full", ageIndex: String = "none", dateIndex: String = "none", geomType: String = "Geometry"): String =
     Seq(
@@ -571,10 +584,9 @@ object TestType extends Enumeration {
     ).mkString(",")
 
   def getTestSpec(test: TestType): String = test match {
-    case TestPoint    => buildSpec(geomType = "Point")
-    case TestGeometry => buildSpec()
-    case TestGeometry_Af => buildSpec(ageIndex = "full")
-    case TestGeometry_Aj => buildSpec(ageIndex = "join")
-    case TestGeometry_Df => buildSpec(dateIndex = "full")
+    case TestPoint_Nad    => buildSpec(geomType = "Point")
+    case TestGeometry_Nad => buildSpec()
+    case TestGeometry_NAd => buildSpec(ageIndex = "true")
+    case TestGeometry_NaD => buildSpec(dateIndex = "true")
   }
 }
