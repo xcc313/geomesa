@@ -334,6 +334,22 @@ class AccumuloDataStoreDeleteGeometriesTest extends Specification with TestWithD
 
 
     }
+
+    "delete an object from ALL index tables" >> {
+      val catalog = "AccumuloDataStoreDeleteRecordTest"
+      val connector = new MockInstance("mycloud").getConnector("user", new PasswordToken("password"))
+      val ds = DataStoreFinder.getDataStore(Map(
+        "connector" -> connector,
+        // note the table needs to be different to prevent testing errors
+        "tableName" -> catalog)).asInstanceOf[AccumuloDataStore]
+      val sft = SimpleFeatureTypes.createType(catalog, spec)
+      ds.createSchema(sft)
+      val tables = GeoMesaTable.getTableNames(sft, ds) ++ Seq(catalog)
+      tables must haveSize(4)
+      connector.tableOperations().list().toSeq must containAllOf(tables)
+
+
+    }
   }
 
   /**
@@ -345,6 +361,21 @@ class AccumuloDataStoreDeleteGeometriesTest extends Specification with TestWithD
     val builder = new SimpleFeatureBuilder(sft)
     builder.set("geom", WKTUtils.read("POINT(45.0 45.0)"))
     builder.set("dtg", "2012-01-02T05:06:07.000Z")
+    builder.set("name",i.toString)
+    val sf = builder.buildFeature(i.toString)
+    sf.getUserData()(Hints.USE_PROVIDED_FID) = java.lang.Boolean.TRUE
+    sf
+  }
+
+  /**
+   * Creates 6 features.
+   *
+   * @param sft
+   */
+  def createTestFeaturesWithNullDates(sft: SimpleFeatureType) = (0 until 6).map { i =>
+    val builder = new SimpleFeatureBuilder(sft)
+    builder.set("geom", WKTUtils.read("POINT(45.0 45.0)"))
+    builder.set("dtg", null)
     builder.set("name",i.toString)
     val sf = builder.buildFeature(i.toString)
     sf.getUserData()(Hints.USE_PROVIDED_FID) = java.lang.Boolean.TRUE

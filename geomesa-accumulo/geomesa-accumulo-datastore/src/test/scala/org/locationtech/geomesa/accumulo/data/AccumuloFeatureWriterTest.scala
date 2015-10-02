@@ -9,7 +9,7 @@
 package org.locationtech.geomesa.accumulo.data
 
 import java.text.SimpleDateFormat
-import java.util.{Date, TimeZone}
+import java.util.{Calendar, Date, TimeZone}
 
 import com.vividsolutions.jts.geom.Geometry
 import org.apache.accumulo.core.client.BatchWriterConfig
@@ -20,6 +20,7 @@ import org.geotools.factory.Hints
 import org.geotools.feature.DefaultFeatureCollection
 import org.geotools.filter.text.cql2.CQL
 import org.geotools.filter.text.ecql.ECQL
+import org.joda.time.{DateTime, DateTimeUtils}
 import org.junit.runner.RunWith
 import org.locationtech.geomesa.accumulo.TestWithDataStore
 import org.locationtech.geomesa.accumulo.data.tables.{GeoMesaTable, RecordTable}
@@ -85,16 +86,16 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
 
   val BaseData = Seq(("will", 56), ("george", 33), ("sue", 99), ("karen", 50), ("bob", 56))
 
-  def generateFeatures(reuseLocation: Boolean, reuseDTG: Boolean): Seq[SimpleFeature] =
+  def generateFeatures(reuseLocation: Boolean, reuseDTG: Boolean, nullDates: Boolean): Seq[SimpleFeature] =
     BaseData.zipWithIndex.map {
       case ((name, age), index) =>
-        val dtg = dateToIndex(if (reuseDTG) 0 else index)
+        val dtg = if (nullDates) null else dateToIndex(if (reuseDTG) 0 else index)
         val geom = geomToIndex(if (reuseLocation) 0 else index)
         val id = s"fid${1 + index}"
         AvroSimpleFeatureFactory.buildAvroFeature(sft, Seq(name, age.asInstanceOf[AnyRef], dtg, geom), id)
     }
 
-  def featureSeq = generateFeatures(reuseLocation = false, reuseDTG = false)
+  def featureSeq = generateFeatures(reuseLocation = false, reuseDTG = false, nullDates = false)
 
   def featureCollection = {
     val coll = new DefaultFeatureCollection
@@ -253,6 +254,39 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
     clearTablesHard()
 
     addFeatures(featureSeq)
+
+    val writer = ds.getFeatureWriter(sftName, Filter.INCLUDE, Transaction.AUTO_COMMIT)
+    while (writer.hasNext) {
+      writer.next()
+      writer.remove()
+    }
+    writer.close()
+
+    val features = fs.getFeatures(Filter.INCLUDE).features().toSeq
+    features must beEmpty
+
+    forall(GeoMesaTable.getTableNames(sft, ds)) { name =>
+      val scanner = connector.createScanner(name, new Authorizations())
+      try {
+        scanner.iterator().hasNext must beFalse
+      } finally {
+        scanner.close()
+      }
+    }
+  }
+
+  def removeFeaturesWithNullDates = {
+    clearTablesHard()
+
+    addFeatures(generateFeatures(reuseLocation = false, reuseDTG = false, nullDates = true))
+
+    println(s"Current date is ${new DateTime()}")
+    println("Setting date to sometime in future")
+    val c = Calendar.getInstance()
+    c.setTime(new Date())
+    c.add(Calendar.DATE, 5)
+    DateTimeUtils.setCurrentMillisFixed(c.getTime.getTime)
+    println(s"Current date is ${new DateTime()}")
 
     val writer = ds.getFeatureWriter(sftName, Filter.INCLUDE, Transaction.AUTO_COMMIT)
     while (writer.hasNext) {
@@ -498,7 +532,7 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
 
     // space out the adding slightly so we ensure they sort how we want - resolution is to the ms
     // also ensure we don't set use_provided_fid
-    generateFeatures(reuseLocation = true, reuseDTG = true).foreach { f =>
+    generateFeatures(reuseLocation = true, reuseDTG = true, nullDates = false).foreach { f =>
       val featureCollection = new DefaultFeatureCollection(sftName, sft)
       f.getUserData.put(Hints.USE_PROVIDED_FID, java.lang.Boolean.FALSE)
       f.getUserData.remove(Hints.PROVIDED_FID)
@@ -542,17 +576,18 @@ class AccumuloFeatureWriterTest extends Specification with TestWithDataStore {
 
   // synchronized, because the class name is used as the feature-type name
   def fullTestSuite = lock.synchronized {
-    deleteAndRepopulate
-    updateViaECQL
-    removeFeatures
-    addInsideTransaction
-    removeInsideTransaction
-    deleteWhenGeometryChanges
-    deleteWhenDateChanges
-    verifyStartEndTimesAreExcluded
-    ensureIdsEndureWhenSpatialIndexChanges
-    verifyDeleteAddSameKeyWorks
-    createZ3BasedUUIDs
+//    deleteAndRepopulate
+//    updateViaECQL
+//    removeFeatures
+    removeFeaturesWithNullDates
+//    addInsideTransaction
+//    removeInsideTransaction
+//    deleteWhenGeometryChanges
+//    deleteWhenDateChanges
+//    verifyStartEndTimesAreExcluded
+//    ensureIdsEndureWhenSpatialIndexChanges
+//    verifyDeleteAddSameKeyWorks
+//    createZ3BasedUUIDs
   }
 
   "AccumuloFeatureWriter" should {
