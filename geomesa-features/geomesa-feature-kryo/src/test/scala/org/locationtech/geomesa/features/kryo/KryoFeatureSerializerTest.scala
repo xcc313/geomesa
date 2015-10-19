@@ -12,9 +12,11 @@ import java.util.{Date, UUID}
 
 import com.typesafe.scalalogging.slf4j.Logging
 import org.apache.commons.codec.binary.Base64
+import org.geotools.factory.Hints
 import org.junit.runner.RunWith
 import org.locationtech.geomesa.features.ScalaSimpleFeature
 import org.locationtech.geomesa.features.SerializationOption.SerializationOptions
+import org.locationtech.geomesa.security.SecurityUtils
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
@@ -47,6 +49,34 @@ class KryoFeatureSerializerTest extends Specification with Logging {
 
       deserialized.getID mustEqual sf.getID
       deserialized.getAttributes mustEqual sf.getAttributes
+    }
+
+    "correctly handle user data" in {
+      val spec = "a:Integer,b:Float,c:Double,d:Long,e:UUID,f:String,g:Boolean,dtg:Date,*geom:Point:srid=4326"
+      val sft = SimpleFeatureTypes.createType("testType", spec)
+      val sf = new ScalaSimpleFeature("fakeid", sft)
+
+      sf.setAttribute("a", "1")
+      sf.setAttribute("b", "1.0")
+      sf.setAttribute("c", "5.37")
+      sf.setAttribute("d", "-100")
+      sf.setAttribute("e", UUID.randomUUID())
+      sf.setAttribute("f", "mystring")
+      sf.setAttribute("g", java.lang.Boolean.FALSE)
+      sf.setAttribute("dtg", "2013-01-02T00:00:00.000Z")
+      sf.setAttribute("geom", "POINT(45.0 49.0)")
+
+      sf.getUserData.put(Hints.USE_PROVIDED_FID, java.lang.Boolean.TRUE)
+      SecurityUtils.setFeatureVisibility(sf, "USER&ADMIN")
+
+      val serializer = new KryoFeatureSerializer(sft, SerializationOptions.withUserData)
+      val serialized = serializer.serialize(sf)
+      val deserialized = serializer.deserialize(serialized)
+
+      deserialized.getID mustEqual sf.getID
+      deserialized.getAttributes mustEqual sf.getAttributes
+      deserialized.getUserData mustEqual sf.getUserData
+
     }
 
     "correctly serialize and deserialize different geometries" in {
