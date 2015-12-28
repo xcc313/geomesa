@@ -9,6 +9,7 @@
 package org.locationtech.geomesa.curve
 
 import org.junit.runner.RunWith
+import org.locationtech.sfcurve.zorder.Z3
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
 

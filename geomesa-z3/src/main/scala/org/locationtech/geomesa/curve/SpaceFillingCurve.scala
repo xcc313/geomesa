@@ -8,6 +8,7 @@
 package org.locationtech.geomesa.curve
 
 import org.joda.time.Weeks
+import org.locationtech.sfcurve.zorder.Z3
 
 trait SpaceFillingCurve[T] {
   def xprec: Long
