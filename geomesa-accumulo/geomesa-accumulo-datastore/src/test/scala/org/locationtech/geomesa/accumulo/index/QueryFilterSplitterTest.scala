@@ -9,17 +9,16 @@
 package org.locationtech.geomesa.accumulo.index
 
 import org.geotools.factory.CommonFactoryFinder
-import org.geotools.filter.AttributeExpression
 import org.geotools.filter.text.ecql.ECQL
 import org.junit.runner.RunWith
 import org.locationtech.geomesa.accumulo.data.tables.AvailableTables
 import org.locationtech.geomesa.accumulo.index.Strategy.StrategyType
-import org.locationtech.geomesa.accumulo.util.SftBuilder
-import org.locationtech.geomesa.accumulo.util.SftBuilder.Opts
 import org.locationtech.geomesa.filter
-import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
+import org.locationtech.geomesa.utils.geotools.SftBuilder.Opts
+import org.locationtech.geomesa.utils.geotools.{SftBuilder, SimpleFeatureTypes}
 import org.locationtech.geomesa.utils.stats.Cardinality
 import org.opengis.filter._
+import org.opengis.filter.expression.PropertyName
 import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
@@ -241,11 +240,11 @@ class QueryFilterSplitterTest extends Specification {
       "indexed attributes" >> {
         val filter = and(indexedAttr, indexedAttr2)
         val options = splitter.getQueryOptions(filter)
-        options must haveLength(1)
+        options must haveLength(2)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.ATTRIBUTE
-        options.head.filters.head.primary mustEqual Seq(indexedAttr, indexedAttr2).map(f)
-        options.head.filters.head.secondary must beNone
+        options.head.filters.head.primary.head mustEqual f(indexedAttr)
+        options.head.filters.head.secondary.head mustEqual f(indexedAttr2)
       }
       "low-cardinality attributes" >> {
         val filter = and(lowCardinaltiyAttr, nonIndexedAttr)
@@ -445,7 +444,7 @@ class QueryFilterSplitterTest extends Specification {
         attrQueryFilter.primary.length mustEqual 5
         attrQueryFilter.primary.forall(_ must beAnInstanceOf[PropertyIsEqualTo])
         val attrProps = attrQueryFilter.primary.map(_.asInstanceOf[PropertyIsEqualTo])
-        foreach(attrProps) {_.getExpression1.asInstanceOf[AttributeExpression].getPropertyName mustEqual "high" }
+        foreach(attrProps) {_.getExpression1.asInstanceOf[PropertyName].getPropertyName mustEqual "high" }
         attrQueryFilter.secondary.isDefined mustEqual true
         attrQueryFilter.secondary.get must beAnInstanceOf[And]
         attrQueryFilter.secondary.get.asInstanceOf[And].getChildren.length mustEqual 2
@@ -457,7 +456,7 @@ class QueryFilterSplitterTest extends Specification {
         z3QueryFilters.primary.length mustEqual 2
         z3QueryFilters.secondary.get must beAnInstanceOf[Or]
         val z3Props = z3QueryFilters.secondary.get.asInstanceOf[Or].getChildren.map(_.asInstanceOf[PropertyIsEqualTo])
-        foreach (z3Props) { _.getExpression1.asInstanceOf[AttributeExpression].getPropertyName mustEqual "high" }
+        foreach (z3Props) { _.getExpression1.asInstanceOf[PropertyName].getPropertyName mustEqual "high" }
       }
 
       val orQuery = (0 until 5).map( i => s"high = 'h$i'").mkString(" OR ")

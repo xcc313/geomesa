@@ -7,132 +7,82 @@
 *************************************************************************/
 package org.locationtech.geomesa.tools.ingest
 
-import java.io.File
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
-
-import com.twitter.scalding.{Args, Hdfs, Local, Mode}
-import org.apache.accumulo.core.client.Connector
-import org.apache.commons.codec.binary.Hex
-import org.apache.commons.io.IOUtils
-import org.apache.hadoop.conf.Configuration
-import org.locationtech.geomesa.accumulo.data.AccumuloDataStore
-import org.locationtech.geomesa.jobs.JobUtils
-import org.locationtech.geomesa.tools.Utils.Formats._
-import org.locationtech.geomesa.tools.Utils.Modes._
-import org.locationtech.geomesa.tools.Utils.{IngestParams, Modes}
-import org.locationtech.geomesa.tools.commands.IngestCommand.IngestParameters
-import org.locationtech.geomesa.tools.ingest.DelimitedIngest._
-import org.locationtech.geomesa.tools.{AccumuloProperties, FeatureCreator}
-import org.locationtech.geomesa.utils.classpath.ClassPathUtils
+import com.typesafe.config.Config
+import com.typesafe.scalalogging.LazyLogging
+import org.geotools.data.{DataStoreFinder, DataUtilities, Transaction}
+import org.geotools.factory.Hints
+import org.geotools.filter.identity.FeatureIdImpl
+import org.locationtech.geomesa.convert.SimpleFeatureConverters
+import org.locationtech.geomesa.convert.Transformers.DefaultCounter
+import org.locationtech.geomesa.utils.classpath.PathUtils
+import org.opengis.feature.simple.SimpleFeatureType
 
 import scala.collection.JavaConversions._
-import scala.collection.JavaConverters._
+import scala.util.Try
 
-class DelimitedIngest(params: IngestParameters) extends AccumuloProperties {
+class DelimitedIngest(dsParams: Map[String, String], sft: SimpleFeatureType, converterConfig: Config, inputs: Seq[String])
+    extends Runnable with LazyLogging {
 
-  def run(): Unit = {
+  val ds = DataStoreFinder.getDataStore(dsParams)
+
+  override def run(): Unit = {
     // create schema for the feature prior to Ingest job
-    FeatureCreator.createFeature(params)
+    logger.info(s"Creating schema ${sft.getTypeName}")
+    ds.createSchema(sft)
 
-    val conf = new Configuration()
-    JobUtils.setLibJars(conf, libJars = ingestLibJars, searchPath = ingestJarSearchPath)
-
-    // setup ingest
-    val mode =
-      if (getJobMode(params.files(0)) == Modes.Hdfs) {
-        logger.info("Running ingest job in HDFS Mode")
-        Hdfs(strict = true, conf)
-      } else {
-        logger.info("Running ingest job in Local Mode")
-        Local(strictSources = true)
-      }
-
-    validateFileArgs(mode, params)
-
-    val arguments = Mode.putMode(mode, getScaldingArgs())
-    val job = new ScaldingDelimitedIngestJob(arguments)
-    val flow = job.buildFlow
-
-    //block until job is completed.
-    flow.complete()
-    job.printStatInfo()
+    if (inputs.head.toLowerCase.startsWith("hdfs://")) {
+      logger.info("Running ingestion in distributed mode")
+      runDistributed()
+    } else {
+      logger.info("Running ingestion in local mode")
+      runLocal()
+    }
   }
 
-  def validateFileArgs(mode: Mode, params: IngestParameters) =
-    mode match {
-      case Local(_) =>
-        if (params.files.size > 1) {
-          throw new IllegalArgumentException("Cannot ingest multiple files in Local mode..." +
-            "please provide only a single file argument")
+  private def runLocal(): Unit = {
+    val counter = new DefaultCounter
+    val fw = ds.getFeatureWriterAppend(sft.getTypeName, Transaction.AUTO_COMMIT)
+    val converter = SimpleFeatureConverters.build[String](sft, converterConfig)
+    val xml = Try(converterConfig.getString("converter.type") == "xml").getOrElse(false)
+    val files = inputs.flatMap(PathUtils.interpretPath)
+    files.foreach { f =>
+      val ec = converter.createEvaluationContext(Map("inputFilePath" -> f.getAbsolutePath), counter)
+      val source = PathUtils.getSource(f) // handles gzip
+      try {
+        val converted = if (xml) {
+          converter.processInput(Iterator(source.mkString), ec) // process as a single line
+        } else {
+          converter.processInput(source.getLines(), ec)
         }
-      case _ =>
+        converted.foreach { sf =>
+          val toWrite = fw.next()
+          toWrite.setAttributes(sf.getAttributes)
+          toWrite.getIdentifier.asInstanceOf[FeatureIdImpl].setID(sf.getID)
+          toWrite.getUserData.putAll(sf.getUserData)
+          toWrite.getUserData.put(Hints.USE_PROVIDED_FID, java.lang.Boolean.TRUE)
+          try {
+            fw.write()
+          } catch {
+            case e: Exception => logger.error(s"Failed to write '${DataUtilities.encodeFeature(toWrite)}'", e)
+          }
+        }
+      } finally {
+        source.close()
+      }
     }
-
-  def ingestLibJars = {
-    val is = getClass.getClassLoader.getResourceAsStream("org/locationtech/geomesa/tools/ingest-libjars.list")
-    try {
-      IOUtils.readLines(is)
-    } catch {
-      case e: Exception => throw new Exception("Error reading ingest libjars: "+e.getMessage, e)
-    } finally {
-      IOUtils.closeQuietly(is)
-    }
+    fw.close()
+    logger.info(s"Local ingestion complete: ${getStatInfo(counter.getSuccess, counter.getFailure)}")
   }
 
-  def ingestJarSearchPath: Iterator[() => Seq[File]] =
-    Iterator(() => ClassPathUtils.getJarsFromEnvironment("GEOMESA_HOME"),
-      () => ClassPathUtils.getJarsFromEnvironment("ACCUMULO_HOME"),
-      () => ClassPathUtils.getJarsFromClasspath(classOf[ScaldingDelimitedIngestJob]),
-      () => ClassPathUtils.getJarsFromClasspath(classOf[AccumuloDataStore]),
-      () => ClassPathUtils.getJarsFromClasspath(classOf[Connector]))
-
-  def getScaldingArgs(): Args = {
-    val singleArgs = List(classOf[ScaldingDelimitedIngestJob].getCanonicalName, getModeFlag(params.files(0)))
-
-    val requiredKvArgs: Map[String, List[String]] = Map(
-      IngestParams.FILE_PATH         -> encodeFileList(params.files.toList),
-      IngestParams.SFT_SPEC          -> URLEncoder.encode(params.spec, "UTF-8"),
-      IngestParams.CATALOG_TABLE     -> params.catalog,
-      IngestParams.ZOOKEEPERS        -> Option(params.zookeepers).getOrElse(zookeepersProp),
-      IngestParams.ACCUMULO_INSTANCE -> Option(params.instance).getOrElse(instanceName),
-      IngestParams.ACCUMULO_USER     -> params.user,
-      IngestParams.ACCUMULO_PASSWORD -> getPassword(params.password),
-      IngestParams.DO_HASH           -> params.hash.toString,
-      IngestParams.FORMAT            -> Option(params.format).getOrElse(getFileExtension(params.files(0))),
-      IngestParams.FEATURE_NAME      -> params.featureName,
-      IngestParams.IS_TEST_INGEST    -> false.toString
-    ).mapValues(List(_))
-
-    val optionalKvArgs: Map[String, List[String]] = List(
-      Option(params.columns)      .map(      IngestParams.COLS            -> List(_)),
-      Option(params.dtFormat)     .map(      IngestParams.DT_FORMAT       -> List(_)),
-      Option(params.idFields)     .map(      IngestParams.ID_FIELDS       -> List(_)),
-      Option(params.dtgField)     .map(      IngestParams.DT_FIELD        -> List(_)),
-      Option(params.skipHeader)   .map(sh => IngestParams.SKIP_HEADER     -> List(sh.toString)),
-      Option(params.lon)          .map(      IngestParams.LON_ATTRIBUTE   -> List(_)),
-      Option(params.lat)          .map(      IngestParams.LAT_ATTRIBUTE   -> List(_)),
-      Option(params.auths)        .map(      IngestParams.AUTHORIZATIONS  -> List(_)),
-      Option(params.visibilities) .map(      IngestParams.VISIBILITIES    -> List(_)),
-      Option(params.indexSchema)  .map(      IngestParams.INDEX_SCHEMA_FMT-> List(_)),
-      Option(params.listDelimiter).map(      IngestParams.LIST_DELIMITER  -> List(_)),
-      Option(params.mapDelimiters).map(      IngestParams.MAP_DELIMITERS  -> _.asScala.toList)).flatten.toMap
-
-    if (!optionalKvArgs.contains(IngestParams.DT_FIELD)) {
-      // assume user has no date field to use and that there is no column of data signifying it.
-      logger.warn("Warning: no date-time field specified. Assuming that data contains no date column. \n" +
-        s"GeoMesa is defaulting to the system time for ingested features.")
-    }
-
-    val kvArgs = (requiredKvArgs ++ optionalKvArgs).flatMap { case (k,v) => List(s"--$k") ++ v }
-    Args(singleArgs ++ kvArgs)
+  private def runDistributed(): Unit = {
+    val (success, failed) = ConverterIngestJob.run(dsParams, sft, converterConfig, inputs)
+    logger.info(s"Distributed ingestion complete: ${getStatInfo(success, failed)}")
   }
-}
 
-object DelimitedIngest {
-  def encodeFileList(files: List[String]) =
-    files.map { s => Hex.encodeHexString(s.getBytes(StandardCharsets.UTF_8)) }.mkString(" ")
-
-  def decodeFileList(encoded: String) =
-    encoded.split(" ").map { s => new String(Hex.decodeHex(s.toCharArray)) }
+  def getStatInfo(successes: Long, failures: Long): String = {
+    val successPvsS = if (successes == 1) "feature" else "features"
+    val failurePvsS = if (failures == 1) "feature" else "features"
+    val failureString = if (failures == 0) "with no failures" else s"and failed to ingest: $failures $failurePvsS"
+    s"ingested: $successes $successPvsS $failureString."
+  }
 }

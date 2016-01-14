@@ -11,7 +11,7 @@ import java.io._
 import java.text.SimpleDateFormat
 import java.util.{Date, TimeZone}
 
-import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.lang.StringEscapeUtils
 import org.geotools.GML
 import org.geotools.GML.Version
@@ -23,6 +23,7 @@ import org.locationtech.geomesa.filter.function._
 import org.locationtech.geomesa.tools.Utils.Formats
 import org.locationtech.geomesa.tools.commands.ExportCommand.ExportParameters
 import org.locationtech.geomesa.utils.geotools.Conversions._
+import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes.ListSplitter
 import org.opengis.feature.simple.SimpleFeatureType
 
 import scala.collection.JavaConversions._
@@ -48,6 +49,7 @@ class GeoJsonExport(writer: Writer) extends FeatureExporter {
 class GmlExport(os: OutputStream) extends FeatureExporter {
 
   val encode = new GML(Version.WFS1_0)
+  // JNH: "location" is unlikely to be a valid namespace.
   encode.setNamespace("location", "location.xsd")
 
   override def write(features: SimpleFeatureCollection) = encode.encode(os, features)
@@ -93,10 +95,29 @@ object ShapefileExport {
 
     modifiedAttrs.mkString(",")
   }
+
+  /**
+   * If the attribute string has the geometry attribute in it, we will replace the name of the
+   * geom descriptor with "the_geom," since that is what Shapefile expect the geom to be named.
+   * @param attributes
+   * @param sft
+   * @return
+   */
+  def replaceGeomInAttributesString(attributes: String, sft: SimpleFeatureType): String = {
+    val trimmedAttributes = scala.collection.mutable.LinkedList(new ListSplitter().parse(attributes):_*)
+    val geomDescriptor = sft.getGeometryDescriptor.getLocalName
+
+    if (trimmedAttributes.contains(geomDescriptor)) {
+      val idx = trimmedAttributes.indexOf(geomDescriptor)
+      trimmedAttributes.set(idx, s"the_geom=$geomDescriptor")
+    }
+
+    trimmedAttributes.mkString(",")
+  }
 }
 
 class DelimitedExport(writer: Writer, format: String, attributes: Option[String])
-    extends FeatureExporter with Logging {
+    extends FeatureExporter with LazyLogging {
 
   val delimiter = format match {
    case Formats.CSV => ","

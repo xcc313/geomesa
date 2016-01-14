@@ -64,6 +64,25 @@ elif [[ $1 = configure ]]; then
     echo >&2 ""
 fi
 
+if [ -z "$GEOMESA_CONF_DIR" ]; then
+    GEOMESA_CONF_DIR=${GEOMESA_HOME}/conf
+elif [[ $1 = configure ]]; then
+    message="Warning: GEOMESA_CONF_DIR was already set, probably by a prior configuration."
+    message="${message}\n The current value is ${GEOMESA_CONF_DIR}."
+    echo >&2 ""
+    echo -e >&2 "$message"
+    echo >&2 ""
+    read -p "Do you want to reset this to ${GEOMESA_HOME}/conf? Y\n " -n 1 -r
+    if [[  $REPLY =~ ^[Yy]$ ]]; then
+        GEOMESA_CONF_DIR=${GEOMESA_HOME}/conf
+        echo >&2 ""
+        echo "Now set to ${GEOMESA_CONF_DIR}"
+    fi
+    echo >&2 ""
+fi
+
+GEOMESA_OPTS="${GEOMESA_OPTS} -Dlog4j.configuration=file://${GEOMESA_CONF_DIR}/log4j.properties"
+
 
 # ACCUMULO paths, user can hard set these, or rely on this script to find set them via
 if [ -n "$ACCUMULO_HOME" ]; then
@@ -147,7 +166,8 @@ function findJars() {
 
 # Start constructing GEOMESA_CP (classpath)
 # include geomesa first so that the correct log4j.properties is picked up
-GEOMESA_CP="$(findJars $GEOMESA_LIB):${ACCUMULO_CONF_DIR}:${HADOOP_CONF_DIR}"
+GEOMESA_CP="${GEOMESA_CONF_DIR}:$(findJars $GEOMESA_LIB)"
+GEOMESA_CP="${GEOMESA_CP}:${ACCUMULO_CONF_DIR}:${HADOOP_CONF_DIR}"
 ACCUMULO_CP="$(findJars $ACCUMULO_LIB)"
 
 #Get the hadoop jars, ignoring jars with names containing slf4j and test
@@ -209,18 +229,6 @@ elif [[ $1 = classpath ]]; then
     for element in ${CLASSPATH//:/ } ; do
         echo ${element}
     done
-elif [[ $1 = repl ]]; then
-    if [ "$2" = "hdfs" ]; then
-        # we need to exclude slf4j, as it's already on the hadoop classpath
-        CLASSPATH="$(echo $GEOMESA_CP | sed s/[^:]*slf4j-log4j[^:]*:*//g):$ACCUMULO_CP"
-        export HADOOP_CLASSPATH="$CLASSPATH"
-        export LIBJARS="${CLASSPATH//:/,}"
-        hadoop jar $GEOMESA_HOME/lib/geomesa-tools-*.jar com.twitter.scalding.ScaldingShell -libjars "$LIBJARS" -Dmapred.reduce.tasks=20 -Dmapred.min.split.size=2000000000 --hdfs --repl
-    else
-        CLASSPATH="$GEOMESA_CP:$ACCUMULO_CP:$HADOOP_CP"
-        java ${GEOMESA_OPTS} -cp ${CLASSPATH} com.twitter.scalding.ScaldingShell --local --repl
-    fi
-    reset # reset the console - the repl can mess up the colors
 else
     if [[ $1 = debug ]]; then
         GEOMESA_OPTS="$GEOMESA_OPTS $GEOMESA_DEBUG_OPTS"

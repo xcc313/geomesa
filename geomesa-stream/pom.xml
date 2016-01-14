@@ -3,18 +3,22 @@
     <parent>
         <artifactId>geomesa</artifactId>
         <groupId>org.locationtech.geomesa</groupId>
-        <version>1.1.0-rc.7-SNAPSHOT</version>
+        <version>1.2.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>geomesa-stream</artifactId>
     <name>GeoMesa Stream</name>
+    <packaging>pom</packaging>
+
+    <properties>
+        <camel.version>2.15.1</camel.version>
+    </properties>
+
     <modules>
         <module>geomesa-stream-api</module>
         <module>geomesa-stream-generic</module>
         <module>geomesa-stream-datastore</module>
-        <module>geomesa-stream-geoserver-plugin</module>
     </modules>
-    <packaging>pom</packaging>
 
 </project>

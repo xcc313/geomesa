@@ -8,7 +8,7 @@
 package org.locationtech.geomesa.tools.commands
 
 import com.beust.jcommander.{JCommander, Parameter, Parameters}
-import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 import org.apache.accumulo.core.client.TableNotFoundException
 import org.locationtech.geomesa.accumulo.data.AccumuloDataStore
 import org.locationtech.geomesa.accumulo.data.tables.{AttributeTable, RecordTable, SpatioTemporalTable, Z3Table}
@@ -18,7 +18,7 @@ import org.locationtech.geomesa.tools.commands.TableConfCommand._
 
 import scala.collection.JavaConversions._
 
-class TableConfCommand(parent: JCommander) extends CommandWithCatalog(parent) with Logging {
+class TableConfCommand(parent: JCommander) extends CommandWithCatalog(parent) with LazyLogging {
   override val command = "tableconf"
   override val params = null
   override def register = {}
@@ -110,13 +110,13 @@ object TableConfCommand {
     @Parameter(names = Array("-t", "--table-suffix"), description = "Table suffix to operate on (attr_idx, st_idx, or records)", required = true)
     var tableSuffix: String = null
 
-    lazy val ds = new DataStoreHelper(this).getExistingStore
+    lazy val ds = new DataStoreHelper(this).getDataStore()
     lazy val tableName = getTableName(ds, this)
   }
 
   @Parameters(commandDescription = "Describe a given configuration parameter for a table")
   class DescribeParams extends ListParams {
-    @Parameter(names = Array("--param"), description = "Accumulo table configuration param name (e.g. table.bloom.enabled)", required = true)
+    @Parameter(names = Array("-P", "--param"), description = "Accumulo table configuration param name (e.g. table.bloom.enabled)", required = true)
     var param: String = null
   }
 

@@ -13,9 +13,10 @@ import java.text.SimpleDateFormat
 import com.esotericsoftware.kryo.Kryo
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.google.common.cache.{CacheBuilder, CacheLoader}
-import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 import org.apache.accumulo.core.client.mapreduce.AccumuloInputFormat
 import org.apache.accumulo.core.client.mapreduce.lib.util.{ConfiguratorBase, InputConfigurator}
+import org.apache.accumulo.core.client.security.tokens.PasswordToken
 import org.apache.accumulo.core.security.Authorizations
 import org.apache.accumulo.core.util.{Pair => AccPair}
 import org.apache.hadoop.conf.Configuration
@@ -38,7 +39,7 @@ import org.opengis.filter._
 
 import scala.collection.JavaConversions._
 
-object GeoMesaSpark extends Logging {
+object GeoMesaSpark extends LazyLogging {
 
   def init(conf: SparkConf, ds: DataStore): SparkConf = init(conf, ds.getTypeNames.map(ds.getSchema))
 
@@ -75,11 +76,13 @@ object GeoMesaSpark extends Logging {
           numberOfSplits: Option[Int] = None): RDD[SimpleFeature] = {
     val ds = DataStoreFinder.getDataStore(dsParams).asInstanceOf[AccumuloDataStore]
     val typeName = query.getTypeName
+    val username = AccumuloDataStoreFactory.params.userParam.lookUp(dsParams).toString
+    val password = new PasswordToken(AccumuloDataStoreFactory.params.passwordParam.lookUp(dsParams).toString.getBytes)
 
     // get the query plan to set up the iterators, ranges, etc
     val qp = JobUtils.getSingleQueryPlan(ds, query)
 
-    ConfiguratorBase.setConnectorInfo(classOf[AccumuloInputFormat], conf, ds.connector.whoami(), ds.authToken)
+    ConfiguratorBase.setConnectorInfo(classOf[AccumuloInputFormat], conf, username, password)
 
     if (useMock){
       ConfiguratorBase.setMockInstance(classOf[AccumuloInputFormat],

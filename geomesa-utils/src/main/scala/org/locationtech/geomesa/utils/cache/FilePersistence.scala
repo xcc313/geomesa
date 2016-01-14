@@ -11,14 +11,14 @@ package org.locationtech.geomesa.utils.cache
 import java.io.{File, FileInputStream, FileOutputStream}
 import java.util.Properties
 
-import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 
 import scala.collection.JavaConversions._
 
 /**
  * Simple persistence strategy that keeps values in memory and writes them to a prop file on disk.
  */
-class FilePersistence(dir: File, file: String) extends Logging {
+class FilePersistence(dir: File, file: String) extends LazyLogging {
 
   // ensure directory is present and available
   require((!dir.exists() && dir.mkdirs()) || dir.isDirectory)
@@ -38,9 +38,11 @@ class FilePersistence(dir: File, file: String) extends Logging {
   }
 
   def keys(): Set[String] = properties.keySet().toSet.asInstanceOf[Set[String]]
+  def keys(prefix: String): Set[String] = keys().filter(_.startsWith(prefix))
 
   def entries(): Set[(String, String)] =
     properties.entrySet().map(e => (e.getKey, e.getValue)).toSet.asInstanceOf[Set[(String, String)]]
+  def entries(prefix: String): Set[(String, String)] = entries().filter(_._1.startsWith(prefix))
 
   /**
    * Returns the specified property

@@ -9,9 +9,10 @@
 package org.locationtech.geomesa.convert
 
 import com.typesafe.config.Config
-import org.locationtech.geomesa.convert.Transformers.{EvaluationContext, Predicate}
+import org.locationtech.geomesa.convert.Transformers.{Counter, EvaluationContext, Predicate}
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 
+import scala.annotation.tailrec
 import scala.collection.JavaConversions._
 import scala.util.Try
 
@@ -27,43 +28,77 @@ class CompositeConverterFactory[I] extends SimpleFeatureConverterFactory[I] {
       }
     new CompositeConverter[I](sft, converters)
   }
-
 }
 
-class CompositeConverter[I](val targetSFT: SimpleFeatureType,
-                            converters: Seq[(Predicate, SimpleFeatureConverter[I])])
-  extends SimpleFeatureConverter[I] {
+class CompositeConverter[I](val targetSFT: SimpleFeatureType, converters: Seq[(Predicate, SimpleFeatureConverter[I])])
+    extends SimpleFeatureConverter[I] {
 
-  val evaluationContexts = List.fill(converters.length)(new EvaluationContext(null, null))
+  val predsWithIndex = converters.map(_._1).zipWithIndex.toIndexedSeq
+  val indexedConverters = converters.map(_._2).toIndexedSeq
 
-  override def processInput(is: Iterator[I],  gParams: Map[String, Any] = Map.empty): Iterator[SimpleFeature] = {
-    var count = 0
-    is.flatMap { input =>
-      count += 1
-      converters.view.zipWithIndex.flatMap { case ((pred, conv), i) =>
-        implicit val ec = evaluationContexts(i)
-        ec.setCount(count)
-        processIfValid(input, pred, conv, gParams)
-      }.headOption
+  override def createEvaluationContext(globalParams: Map[String, Any], counter: Counter): EvaluationContext = {
+    val delegates = converters.map(_._2.createEvaluationContext(globalParams, counter)).toIndexedSeq
+    new CompositeEvaluationContext(delegates)
+  }
+
+  override def processInput(is: Iterator[I], ec: EvaluationContext): Iterator[SimpleFeature] = {
+    val setEc: (Int) => Unit = ec match {
+      case c: CompositeEvaluationContext => (i) => c.setCurrent(i)
+      case _ => (_) => Unit
+    }
+    val toEval = Array.ofDim[Any](1)
+
+    def evalPred(pi: (Predicate, Int)): Boolean = {
+      setEc(pi._2)
+      Try(pi._1.eval(toEval)(ec)).getOrElse(false)
+    }
+
+    new Iterator[SimpleFeature] {
+      var iter: Iterator[SimpleFeature] = loadNext()
+
+      override def hasNext: Boolean = iter.hasNext
+      override def next(): SimpleFeature = {
+        val res = iter.next()
+        if (!iter.hasNext && is.hasNext) {
+          iter = loadNext()
+        }
+        res
+      }
+
+      @tailrec
+      def loadNext(): Iterator[SimpleFeature] = {
+        toEval(0) = is.next()
+        val i = predsWithIndex.find(evalPred).map(_._2).getOrElse(-1)
+        val res = if (i == -1) {
+          ec.counter.incLineCount()
+          ec.counter.incFailure()
+          Iterator.empty
+        } else {
+          indexedConverters(i).processInput(Iterator(toEval(0).asInstanceOf[I]), ec)
+        }
+
+        if (res.hasNext) {
+          res
+        } else if (!is.hasNext) {
+          Iterator.empty
+        } else {
+          loadNext()
+        }
+      }
     }
   }
 
-  // noop
-  override def processSingleInput(i: I, gParams: Map[String, Any] = Map.empty)(implicit ec: EvaluationContext): Seq[SimpleFeature] = null
 
-  private val mutableArray = Array.ofDim[Any](1)
+}
 
-  def processIfValid(input: I,
-                     pred: Predicate,
-                     conv: SimpleFeatureConverter[I],
-                     gParams: Map[String, Any])
-                    (implicit  ec: EvaluationContext) = {
-    val opt =
-      Try {
-        mutableArray(0) = input
-        pred.eval(mutableArray)
-      }.toOption.toSeq
+case class CompositeEvaluationContext(contexts: IndexedSeq[EvaluationContext]) extends EvaluationContext {
 
-    opt.flatMap { v => if (v) conv.processSingleInput(input, gParams)(ec) else Seq.empty }
-  }
+  var current: EvaluationContext = contexts.headOption.orNull
+
+  def setCurrent(i: Int): Unit = current = contexts(i)
+
+  override def get(i: Int): Any = current.get(i)
+  override def set(i: Int, v: Any): Unit = current.set(i, v)
+  override def indexOf(n: String): Int = current.indexOf(n)
+  override def counter: Counter = current.counter
 }

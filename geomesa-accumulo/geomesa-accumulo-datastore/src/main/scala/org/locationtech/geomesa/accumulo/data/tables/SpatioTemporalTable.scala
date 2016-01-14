@@ -8,7 +8,7 @@
 
 package org.locationtech.geomesa.accumulo.data.tables
 
-import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 import org.apache.accumulo.core.client.BatchDeleter
 import org.apache.accumulo.core.client.admin.TableOperations
 import org.apache.accumulo.core.conf.Property
@@ -23,7 +23,7 @@ import org.opengis.feature.simple.SimpleFeatureType
 
 import scala.collection.JavaConversions._
 
-object SpatioTemporalTable extends GeoMesaTable with Logging {
+object SpatioTemporalTable extends GeoMesaTable with LazyLogging {
 
   val INDEX_FLAG = "0"
   val DATA_FLAG = "1"
@@ -90,9 +90,7 @@ object SpatioTemporalTable extends GeoMesaTable with Logging {
 
 
   override def configureTable(sft: SimpleFeatureType, tableName: String, tableOps: TableOperations): Unit = {
-    // NOTE: since the ST table is likely going away, I'm not inclined to thread maxShards all the way through
-    // the call chain so I just set a default of 40 here
-    val maxShard = 40
+    val maxShard = IndexSchema.maxShard(sft.getStIndexSchema)
     val splits = (1 to maxShard - 1).map(i => new Text(s"%0${maxShard.toString.length}d".format(i)))
     tableOps.addSplits(tableName, new java.util.TreeSet(splits))
 

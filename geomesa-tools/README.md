@@ -30,43 +30,48 @@ Now, you should be able to use GeoMesa from any directory on your computer. To t
 
 This should print out the following usage text: 
 
-    bash$ geomesa
+    $ geomesa
     Usage: geomesa [command] [command options]
       Commands:
-        create       Create a feature definition in a GeoMesa catalog
-        delete       Delete a feature's data and definition from a GeoMesa catalog
-        deleteraster Delete a raster table
-        describe     Describe the attributes of a given feature in GeoMesa
-        explain      Explain how a GeoMesa query will be executed
-        export       Export a GeoMesa feature
-        help         Show help
-        ingest       Ingest a file of various formats into GeoMesa
-        ingestraster Ingest a raster file or raster files in a directory into GeoMesa
-        list         List GeoMesa features for a given catalog
-        querystats   Export queries and statistics about the last X number of queries to a CSV file.
-        tableconf    Perform table configuration operations
-                
+        create           Create a feature definition in a GeoMesa catalog
+        deletecatalog    Delete a GeoMesa catalog completely (and all features in it)
+        deleteraster     Delete a GeoMesa Raster Table
+        describe         Describe the attributes of a given feature in GeoMesa
+        env              Examine the current GeoMesa environment
+        explain          Explain how a GeoMesa query will be executed
+        export           Export a GeoMesa feature
+        getsft           Get the SimpleFeatureType of a feature
+        help             Show help
+        ingest           Ingest/convert various file formats into GeoMesa
+        ingestraster     Ingest a raster file or raster files in a directory into GeoMesa
+        list             List GeoMesa features for a given catalog
+        querystats       Export queries and statistics about the last X number of queries to a CSV file.
+        removeschema     Remove a schema and associated features from a GeoMesa catalog
+        tableconf        Perform table configuration operations
+        version          GeoMesa Version
+
+
 This usage text lists the available commands. To see help for an individual command run `geomesa help <command-name>` which for example
 will give you something like this:
 
-    bash$ geomesa help list
+    $ geomesa help list
     List GeoMesa features for a given catalog
     Usage: list [options]
       Options:
-        -a, --auths
+        --auths
            Accumulo authorizations
       * -c, --catalog
            Catalog table name for GeoMesa
         -i, --instance
            Accumulo instance name
-        -mc, --mock
+        --mock
            Run everything with a mock accumulo instance instead of a real one
            Default: false
         -p, --password
            Accumulo password (will prompt if not supplied)
       * -u, --user
            Accumulo user name
-        -v, --visibilities
+        --visibilities
            Accumulo scan visibilities
         -z, --zookeepers
            Zookeepers (host[:port], comma separated)
@@ -80,7 +85,7 @@ A test script is included under `geomesa\bin\test-geomesa` that runs each comman
 by including your Accumulo username, password, test catalog table, test feature name, and test SFT specification. Default values
 are already included in the script. Then, run the script from the command line to ensure there are no errors in the output text. 
 
-In all commands below, one can add `--instance-name`, `--zookeepers`, `--auths`, and `--visibilities` (or in short form `-i, -z, -a, -v`) arguments
+In all commands below, one can add `--instance-name`, `--zookeepers`, `--auths`, and `--visibilities` (or in short form `-i, -z`) arguments
 to properly configure the Accumulo data store connector. The Accumulo instance name and Zookeepers string can usually
 be automatically assigned as long as Accumulo is configured correctly. The Auths and Visibilities strings will have to
 be added as arguments to each command, if needed.
@@ -102,7 +107,7 @@ Optionally there is a script bundled as `$GEOMESA_HOME/bin/install-jai` that wil
 the jai libraries
 
 
-###Enabling Raster Ingest
+### Enabling Raster Ingest
 Due to licensing restrictions, a number of necessary dependencies required for raster ingest must be manually installed:
 
     <dependency>
@@ -157,110 +162,108 @@ To create a new feature on a specified catalog table, use the `create` command.
 
 #### Usage (required options denoted with star):
     $ geomesa help create
-    Create a feature definition in a GeoMesa catalog
-    Usage: create [options]
-      Options:
-        -a, --auths
-           Accumulo authorizations
-      * -c, --catalog
-           Catalog table name for GeoMesa
-        -dt, --dtg
-           DateTime field name to use as the default dtg
-      * -fn, --feature-name
-           Simple Feature Type name on which to operate
-        -i, --instance
-           Accumulo instance name
-        -mc, --mock
-           Run everything with a mock accumulo instance instead of a real one
-           Default: false
-        -p, --password
-           Accumulo password (will prompt if not supplied)
-        -sh, --shards
-           Number of shards to use for the storage tables (defaults to number of
-           tservers)
-      * -s, --spec
-           SimpleFeatureType specification
-        -st, --use-shared-tables
-           Use shared tables in Accumulo for feature storage (true/false)
-           Default: true
-      * -u, --user
-           Accumulo user name
-        -v, --visibilities
-           Accumulo scan visibilities
-        -z, --zookeepers
-           Zookeepers (host[:port], comma separated)
+      Create a feature definition in a GeoMesa catalog
+      Usage: create [options]
+        Options:
+          --auths
+             Accumulo authorizations
+        * -c, --catalog
+             Catalog table name for GeoMesa
+          --dtg
+             DateTime field name to use as the default dtg
+        * -f, --feature-name
+             Simple Feature Type name on which to operate
+          -i, --instance
+             Accumulo instance name
+          --mock
+             Run everything with a mock accumulo instance instead of a real one
+             Default: false
+          -p, --password
+             Accumulo password (will prompt if not supplied)
+          -s, --spec
+             SimpleFeatureType specification as a GeoTools spec string, SFT config, or
+             file with either
+          --use-shared-tables
+             Use shared tables in Accumulo for feature storage (true/false)
+             Default: true
+        * -u, --user
+             Accumulo user name
+          --visibilities
+             Accumulo scan visibilities
+          -z, --zookeepers
+             Zookeepers (host[:port], comma separated)
+
 
 #### Example command:
-    geomesa create -u username -p password -c test_create -i instname -z zoo1,zoo2,zoo3 -fn testing -s fid:String:index=true,dtg:Date,geom:Point:srid=4326 -dt dtg
+    geomesa create -u username -p password -c test_create -i instance -z zoo1,zoo2,zoo3 -f testing -s fid:String:index=true,dtg:Date,geom:Point:srid=4326 --dtg dtg
 
 ### removeschema
 To remove a feature type and it's associated data from a catalog table, use the `removeschema` command.
 
-####Usage (required options denoted with star):
+#### Usage (required options denoted with star):
     $ geomesa help removeschema
+    Remove a schema and associated features from a GeoMesa catalog
     Usage: removeschema [options]
       Options:
-        -a, --auths
+        --auths
            Accumulo authorizations
       * -c, --catalog
            Catalog table name for GeoMesa
-        -fn, --feature-name
+        -f, --feature-name
            Simple Feature Type name on which to operate
-        -f, --force
+        --force
            Force deletion without prompt
            Default: false
         -i, --instance
            Accumulo instance name
-        -mc, --mock
+        --mock
            Run everything with a mock accumulo instance instead of a real one
-           (true/false)
            Default: false
         -p, --password
            Accumulo password (will prompt if not supplied)
-        -pt, --pattern
+        --pattern
            Regular expression to select items to delete
       * -u, --user
            Accumulo user name
-        -v, --visibilities
+        --visibilities
            Accumulo scan visibilities
         -z, --zookeepers
            Zookeepers (host[:port], comma separated)
 
 
-    
 ####Example:
-    geomesa removeschema -u username -p password -i instname -z zoo1,zoo2,zoo3 -c test_catalog -fn testfeature1
-    geomesa removeschema -u username -p password -i instname -z zoo1,zoo2,zoo3 -c test_catalog -pt 'testfeatures\d+'
+    geomesa removeschema -u username -p password -i instance -z zoo1,zoo2,zoo3 -c test_catalog -f testfeature1
+    geomesa removeschema -u username -p password -i instance -z zoo1,zoo2,zoo3 -c test_catalog --pattern 'testfeatures\d+'
     
     
 ### deleteraster
 To delete a specific raster table use the `deleteraster` command.
 
-####Usage (required options denoted with star):
+#### Usage (required options denoted with star):
     $ geomesa help deleteraster
-    Delete a GeoMesa Raster Store 
-    Usage: deleteraster [options]
-      Options:
-        -a, --auths
-           Accumulo authorizations
-        -f, --force
-           Force deletion of feature without prompt
-           Default: false
-        -i, --instance
-           Accumulo instance name
-        -mc, --mock
-           Run everything with a mock accumulo instance instead of a real one
-           Default: false
-        -p, --password
-           Accumulo password (will prompt if not supplied)
-      * -t, --raster-table
-           Accumulo table for storing raster data
-      * -u, --user
-           Accumulo user name
-        -v, --visibilities
-           Accumulo scan visibilities
-        -z, --zookeepers
-           Zookeepers (host[:port], comma separated)
+      Delete a GeoMesa Raster Table
+      Usage: deleteraster [options]
+        Options:
+          --auths
+             Accumulo authorizations
+          -f, --force
+             Force deletion of feature without prompt
+             Default: false
+          -i, --instance
+             Accumulo instance name
+          --mock
+             Run everything with a mock accumulo instance instead of a real one
+             Default: false
+          -p, --password
+             Accumulo password (will prompt if not supplied)
+        * -t, --raster-table
+             Accumulo table for storing raster data
+        * -u, --user
+             Accumulo user name
+          --visibilities
+             Accumulo scan visibilities
+          -z, --zookeepers
+             Zookeepers (host[:port], comma separated)
 
 
 ####Example:
@@ -270,142 +273,159 @@ To delete a specific raster table use the `deleteraster` command.
 ### deletecatalog
 To delete a GeoMesa catalog completely (and all features in it) use the `deletecatalog` command.
 
-####Usage (required options denoted with star):
-    geomesa help deletecatalog
+#### Usage (required options denoted with star):
+    $ geomesa help deletecatalog
     Delete a GeoMesa catalog completely (and all features in it)
     Usage: deletecatalog [options]
       Options:
-        -a, --auths
+        --auths
            Accumulo authorizations
       * -c, --catalog
            Catalog table name for GeoMesa
-        -f, --force
+        --force
            Force deletion without prompt
            Default: false
         -i, --instance
            Accumulo instance name
-        -mc, --mock
+        --mock
            Run everything with a mock accumulo instance instead of a real one
-           (true/false)
            Default: false
         -p, --password
            Accumulo password (will prompt if not supplied)
       * -u, --user
            Accumulo user name
-        -v, --visibilities
+        --visibilities
            Accumulo scan visibilities
         -z, --zookeepers
            Zookeepers (host[:port], comma separated)
+
     
 ####Example:
-    geomesa deletecatalog -u username -p password -i instname -z zoo1,zoo2,zoo3 -c test_catalog
+    geomesa deletecatalog -u username -p password -i instance -z zoo1,zoo2,zoo3 -c test_catalog
     
 ### describe
 To describe the attributes of a feature on a specified catalog table, use the `describe` command.  
 
-####Usage (required options denoted with star):
+#### Usage (required options denoted with star):
     $ geomesa help describe
     Describe the attributes of a given feature in GeoMesa
     Usage: describe [options]
       Options:
-        -a, --auths
+        --auths
            Accumulo authorizations
       * -c, --catalog
            Catalog table name for GeoMesa
-      * -fn, --feature-name
+      * -f, --feature-name
            Simple Feature Type name on which to operate
         -i, --instance
            Accumulo instance name
-        -mc, --mock
-           Run everything with a mock accumulo instance instead of a real one (true/false)
+        --mock
+           Run everything with a mock accumulo instance instead of a real one
            Default: false
         -p, --password
            Accumulo password (will prompt if not supplied)
       * -u, --user
            Accumulo user name
-        -v, --visibilities
+        --visibilities
            Accumulo scan visibilities
         -z, --zookeepers
            Zookeepers (host[:port], comma separated)
 
       
 #### Example command:
-    geomesa describe -u username -p password -c test_delete -fn testing
- 
+    geomesa describe -u username -p password -c test_delete -f testing
+
+### env
+Prints out simple feature types and simple feature converters that are available on the current classpath.
+Available types can be used for ingestion - see the `ingest` command.
+
+#### Usage (required options denoted with star):
+    $ geomesa help env
+    Examine the current GeoMesa environment
+    Usage: env [options]
+      Options:
+        -c, --converters
+           Examine GeoMesa converters
+        -s, --sfts
+           Examine simple feature types
+
+#### Example command:
+    geomesa env
+
 ### explain
 To ask GeoMesa how it intends to satisfy a given query, use the `explain` command.
 
-####Usage (required options denoted with star):
+#### Usage (required options denoted with star):
     $ geomesa help explain
     Explain how a GeoMesa query will be executed
     Usage: explain [options]
       Options:
-        -a, --auths
+        --auths
            Accumulo authorizations
       * -c, --catalog
            Catalog table name for GeoMesa
       * -q, --cql
            CQL predicate
-      * -fn, --feature-name
+      * -f, --feature-name
            Simple Feature Type name on which to operate
         -i, --instance
            Accumulo instance name
-        -mc, --mock
+        --mock
            Run everything with a mock accumulo instance instead of a real one
            Default: false
         -p, --password
            Accumulo password (will prompt if not supplied)
       * -u, --user
            Accumulo user name
-        -v, --visibilities
+        --visibilities
            Accumulo scan visibilities
         -z, --zookeepers
            Zookeepers (host[:port], comma separated)
 
 
 #### Example command:
-    geomesa explain -u username -p password -c test_catalog -fn test_feature -q "INTERSECTS(geom, POLYGON ((41 28, 42 28, 42 29, 41 29, 41 28)))"
+    geomesa explain -u username -p password -c test_catalog -f test_feature -q "INTERSECTS(geom, POLYGON ((41 28, 42 28, 42 29, 41 29, 41 28)))"
 
 ### export
 To export features, use the `export` command.  
 
-####Usage (required options denoted with star):
+#### Usage (required options denoted with star):
     $ geomesa help export
     Export a GeoMesa feature
     Usage: export [options]
       Options:
-        -at, --attributes
+        -a, --attributes
            Attributes from feature to export (comma-separated)...Comma-separated
            expressions with each in the format attribute[=filter_function_expression]|derived-attribute=filter_function_expression.
            filter_function_expression is an expression of filter function applied to attributes, literals and
            filter functions, i.e. can be nested
-        -a, --auths
+        --auths
            Accumulo authorizations
       * -c, --catalog
            Catalog table name for GeoMesa
         -q, --cql
            CQL predicate
-        -dt, --dt-attribute
+        --dt-attribute
            name of the date attribute to export
-      * -fn, --feature-name
+      * -f, --feature-name
            Simple Feature Type name on which to operate
-        -fmt, --format
+        -F, --format
            Format to export (csv|tsv|gml|json|shp|bin)
            Default: csv
-        -id, --id-attribute
+        --id-attribute
            name of the id attribute to export
         -i, --instance
            Accumulo instance name
-        -lat, --lat-attribute
+        --label-attribute
+           name of the attribute to use as a bin file label
+        --lat-attribute
            name of the latitude attribute to export
-        -lon, --lon-attribute
+        --lon-attribute
            name of the longitude attribute to export
-        -lbl, --label-attribute
-           name of the label attribute to export
-        -max, --max-features
+        -m, --max-features
            Maximum number of features to return. default: Long.MaxValue
            Default: 2147483647
-        -mc, --mock
+        --mock
            Run everything with a mock accumulo instance instead of a real one
            Default: false
         -o, --output
@@ -414,10 +434,11 @@ To export features, use the `export` command.
            Accumulo password (will prompt if not supplied)
       * -u, --user
            Accumulo user name
-        -v, --visibilities
+        --visibilities
            Accumulo scan visibilities
         -z, --zookeepers
            Zookeepers (host[:port], comma separated)
+
 
 <b>attribute expressions</b>
 Attribute expressions are comma-separated expressions with each in the format 
@@ -427,72 +448,80 @@ Attribute expressions are comma-separated expressions with each in the format
 `filter_function_expression` is an expression of filter function applied to attributes, literals and filter functions, i.e. can be nested
 
 #### Example commands:
-    geomesa export -u username -p password -c test_catalog -fn test_feature -at "geom,text,user_name" -fmt csv -q "include" -m 100
-    geomesa export -u username -p password -c test_catalog -fn test_feature -at "geom,text,user_name" -fmt gml -q "user_name='JohnSmith'"
-    geomesa export -u username -p password -c test_catalog -fn test_feature -at "user_name,buf=buffer(geom\, 2)" \
-        -fmt csv -q "[[ user_name like `John%' ] AND [ bbox(geom, 22.1371589, 44.386463, 40.228581, 52.379581, 'EPSG:4326') ]]"
-    
-### ingest
-Ingests CSV, TSV, and SHP files from the local file system and HDFS. CSV and TSV files can be ingested either with explicit latitude and longitude columns or with a column of WKT geometries.
-For lat/lon column ingest, the sft spec must include an additional geometry attribute in the sft beyond the number of columns in the file such as: `*geom:Point`.
-The file type is inferred from the extension of the file, so ensure that the formatting of the file matches the extension of the file and that the extension is present.
-*Note* the header if present is not parsed by Ingest for information, it is assumed that all lines are valid entries.
+    geomesa export -u username -p password -c test_catalog -f test_feature -a "geom,text,user_name" --format csv -q "include" -m 100
+    geomesa export -u username -p password -c test_catalog -f test_feature -a "geom,text,user_name" --format gml -q "user_name='JohnSmith'"
+    geomesa export -u username -p password -c test_catalog -f test_feature -a "user_name,buf=buffer(geom\, 2)" \
+        --format csv -q "[[ user_name like `John%' ] AND [ bbox(geom, 22.1371589, 44.386463, 40.228581, 52.379581, 'EPSG:4326') ]]"
 
-####Usage (required options denoted with star):
-    $ geomesa help ingest
-    Ingest a file of various formats into GeoMesa
-    Usage: ingest [options] <file>...
+### getsft
+Gets an existing simple feature type as an encoded string.
+
+#### Usage (required options denoted with star):
+    $ geomesa help getsft
+    Get the SimpleFeatureType of a feature
+    Usage: getsft [options]
       Options:
-        -a, --auths
+        --auths
            Accumulo authorizations
       * -c, --catalog
            Catalog table name for GeoMesa
-        -cols, --columns
-           the set of column indexes to be ingested, must match the
-           SimpleFeatureType spec (zero-indexed)
-        -dtf, --dt-format
-           format string for the date time field
-        -dt, --dtg
-           DateTime field name to use as the default dtg
-      * -fn, --feature-name
+      * -f, --feature-name
            Simple Feature Type name on which to operate
-        -fmt, --format
-           format of incoming data (csv | tsv | shp) to override file extension
-           recognition
-        -h, --hash
-           flag to toggle using md5hash as the feature id
-           Default: false
-        -id, --id-fields
-           the set of attributes to combine together to create a unique id for the
-           feature (comma separated)
-        -is, --index-schema
-           GeoMesa index schema format string
         -i, --instance
            Accumulo instance name
-        -lat, --lat-attribute
-           name of the latitude field in the SimpleFeature if latitude is 
-           kept in the SFT spec; otherwise defines the csv field index used to create the
-           default geometry
-        -lon, --lon-attribute
-           name of the longitude field in the SimpleFeature if longitude is 
-           kept in the SFT spec; otherwise defines the csv field index used to create the
-           default geometry
-        -mc, --mock
+        --mock
            Run everything with a mock accumulo instance instead of a real one
            Default: false
         -p, --password
            Accumulo password (will prompt if not supplied)
-        -sh, --shards
-           Number of shards to use for the storage tables (defaults to number of
-           tservers)
-      * -s, --spec
-           SimpleFeatureType specification
-        -st, --use-shared-tables
-           Use shared tables in Accumulo for feature storage (true/false)
-           Default: true
       * -u, --user
            Accumulo user name
-        -v, --visibilities
+        --visibilities
+           Accumulo scan visibilities
+        -z, --zookeepers
+           Zookeepers (host[:port], comma separated)
+
+
+#### Example command:
+    geomesa getsft -u username -p password -c test_catalog -f test_feature -i instance
+
+### ingest
+Ingests line-oriented delimited text (csv, tsv) and SHP files from the local file system and HDFS. CSV and TSV files  
+can be ingested either with explicit latitude and longitude columns or with a column of WKT geometries.
+For lat/lon column ingest, the sft spec must include an additional geometry attribute in the sft beyond the number of 
+columns in the file such as: `*geom:Point`. The file type is inferred from the extension of the file, so ensure that 
+the formatting of the file matches the extension of the file and that the extension is present.
+*Note* the header if present is not parsed by Ingest for information, it is assumed that all lines are valid entries.
+
+#### Usage (required options denoted with star):
+    $ geomesa help ingest
+    Ingest/convert various file formats into GeoMesa
+    Usage: ingest [options] <file>...
+      Options:
+        --auths
+           Accumulo authorizations
+      * -c, --catalog
+           Catalog table name for GeoMesa
+        -C, --converter
+           GeoMesa converter specification as a config string or name of an
+           available converter
+        -f, --feature-name
+           Simple Feature Type name on which to operate
+        -F, --format
+           indicate non-converter ingest (shp)
+        -i, --instance
+           Accumulo instance name
+        --mock
+           Run everything with a mock accumulo instance instead of a real one
+           Default: false
+        -p, --password
+           Accumulo password (will prompt if not supplied)
+        -s, --spec
+           SimpleFeatureType specification as a GeoTools spec, SFT config, or name
+           of an available type
+      * -u, --user
+           Accumulo user name
+        --visibilities
            Accumulo scan visibilities
         -z, --zookeepers
            Zookeepers (host[:port], comma separated)
@@ -502,51 +531,56 @@ The file type is inferred from the extension of the file, so ensure that the for
 
 ##### Ingest CSV with single WKT (Well Known Text) geometry
 
-    # file.csv (comma separated)
-    featureId,date,geom
-    1.23623623,01/01/2014 06:30:23,POINT(2 3)
-    290.43234,01/02/2014 08:35:24,POINT(3 3)
-    3.14159,01/03/2014 18:11:56,POINT(4 5)
+    $ cat example1.csv
+    ID,Name,Age,LastSeen,Friends,Lat,Lon
+    23623,Harry,20,2015-05-06,"Will, Mark, Suzan",-100.236523,23
+    26236,Hermione,25,2015-06-07,"Edward, Bill, Harry",40.232,-53.2356
+    3233,Severus,30,2015-10-23,"Tom, Riddle, Voldemort",3,-62.23
+        
+    # cat $GEOMESA_HOME/conf/application.conf
+    geomesa {
+      sfts = [
+        {
+          type-name = "renegades"
+          attributes = [
+            {name = "id", type = "Integer", index = false},
+            {name = "name", type = "String", index = true},
+            {name = "age", type = "Integer", index = false},
+            {name = "lastseen", type = "Date", index = true},
+            {name = "friends", type = "List[String]", index = true},
+            {name = "geom", type = "Point", index = true, srid = 4326, default = true}
+          ]
+        }
+      ],
+      converters = [
+        {
+          name = "renegades-csv"
+          type = "delimited-text",
+          format = "CSV",
+          options {
+            skip-lines = 0 // don't skip lines in distributed ingest
+          },
+          id-field = "toString($id)",
+          fields = [
+            {name = "id", transform = "$1::int"},
+            {name = "name", transform = "$2::string"},
+            {name = "age", transform = "$3::int"},
+            {name = "lastseen", transform = "$4::date"},
+            {name = "friends", transform = "parseList('string', $5)"},
+            {name = "lon", transform = "$6::double"},
+            {name = "lat", transform = "$7::double"},
+            {name = "geom", transform = "point($lon, $lat)"}
+          ]
+        }
+      ]
+    }
 
     # ingest command
-    geomesa ingest -u username -p password -c geomesa_catalog -fn myfeature -s 'fid:Double,dtg:Date,*geom:Geometry' \
-        --dtg dtg -dtf "MM/dd/yyyy HH:mm:ss" hdfs:///some/hdfs/path/to/file.csv
+    geomesa ingest -u username -p password -c geomesa_catalog -i instance -s renegades -C renegades-csv hdfs:///some/hdfs/path/to/file.csv
 
-##### Ingest lon/lat that are part of the SimpleFeatureType using a feature id made of the hash of two fields
- 
-    # file.tsv (tab separated)
-    2.3623  01/01/2014 06:30:23 38.023 -74.0002
-    23.333  01/01/2014 06:30:23 39.424 -76.02
-    10.021  01/01/2014 06:30:23 40.325 -75.883
-    
-    # ingest command
-    geomesa ingest -u username -p password -c geomesa_catalog -a someAuths -v someVis -sh 42 -fn myfeature
-     -s fid:Double,dtg:Date,lon:Double,lat:Double,*geom:Point -dt dtg -dtf "MM/dd/yyyy HH:mm:ss" 
-     -id fid,dtg -h -lon lon -lat lat /some/local/path/to/file.tsv
+##### Converter Config
 
-##### Create geometry field from the lon/lat but drop the lon/lat from the FeatureType spec - List[Int] is ingested
-
-    # file.csv (comma separated
-    "2014-01-01 22:33:44","38.023","-74.0002","5,6,7"
-    "2014-01-02 22:33:44","39.023","-78.0002",""
-    "2014-01-03 22:33:44","50.023","-73.0002","1, 2, 3"
-    
-    # ingest command
-    geomesa ingest -u username -p password -c geomesa_catalog -fn myfeature
-     -s 'dtg:Date,myList:List[Int],*geom:Point' -cols '0,3' -dt dtg -dtf "MM-dd-yyyy HH:mm:ss" 
-     -lon 1 -lat 2 /some/local/path/to/file.csv
-
-##### Create geometry field from the lon/lat but drop the lon/lat from the FeatureType spec - Map[String,Int] is ingested
-
-    # file.csv (comma separated
-    "2014-01-01 22:33:44","38.023","-74.0002","a,5;b,6;c,7"
-    "2014-01-02 22:33:44","39.023","-78.0002",""
-    "2014-01-03 22:33:44","50.023","-73.0002","a,1;b,2;d,3"
-
-    # ingest command
-    geomesa ingest -u username -p password -c geomesa_catalog -fn myfeature
-     -s 'dtg:Date,myMap:Map[String,Int],*geom:Point' -cols '0,3' -dt dtg -dtf "MM-dd-yyyy HH:mm:ss"
-     -lon 1 -lat 2 -md "," ";" /some/local/path/to/file.csv
+For more documentation on converter configuration, check out the geomesa-convert README
 
 ##### Ingest a shape file
     geomesa ingest -u username -p password -c test_catalog -f shapeFileFeatureName /some/path/to/file.shp
@@ -565,43 +599,42 @@ directory from where they are ingested.
 EPSG:4326 raster files before ingestion. An example of doing conversion with GDAL utility is `gdalwarp -t_srs EPSG:4326
 input_file out_file`.
 
-####Usage (required options denoted with star):
+#### Usage (required options denoted with star):
     $ geomesa help ingestraster
-    Ingest a raster file or files in a directory into GeoMesa
+    Ingest a raster file or raster files in a directory into GeoMesa
     Usage: ingestraster [options]
       Options:
-        -a, --auths
+        --auths
            Accumulo authorizations
       * -f, --file
            Single raster file or directory of raster files to be ingested
-        -fmt, --format
+        -F, --format
            Format of incoming raster data (geotiff | DTED) to override file
            extension recognition
         -i, --instance
            Accumulo instance name
-        -mc, --mock
+        --mock
            Run everything with a mock accumulo instance instead of a real one
-           (true/false)
            Default: false
-        -par, --parallel-level
+        -P, --parallel-level
            Maximum number of local threads for ingesting multiple raster files
            (default to 1)
            Default: 1
         -p, --password
            Accumulo password (will prompt if not supplied)
-        -qt, --query-threads
+        --query-threads
            Threads for quering raster data
       * -t, --raster-table
            Accumulo table for storing raster data
-        -tm, --timestamp
+        -T, --timestamp
            Ingestion time (default to current time)
       * -u, --user
            Accumulo user name
-        -v, --visibilities
+        --visibilities
            Accumulo scan visibilities
-        -wm, --write-memory
+        --write-memory
            Memory allocation for ingestion operation
-        -wt, --write-threads
+        --write-threads
            Threads for writing raster data
         -z, --zookeepers
            Zookeepers (host[:port], comma separated)
@@ -610,30 +643,28 @@ input_file out_file`.
 #### Example commands:
     geomesa ingestraster -u username -p password -t geomesa_raster -f /some/local/path/to/raster.tif
 
-    geomesa ingestraster -u username -p password -t geomesa_raster -ck -cs 1000 -m distributed -f /some/path/to/raster.tif
-
 ### list
 To list the features on a specified catalog table, use the `list` command.  
 
-####Usage (required options denoted with star):
+#### Usage (required options denoted with star):
     $ geomesa help list
     List GeoMesa features for a given catalog
     Usage: list [options]
       Options:
-        -a, --auths
+        --auths
            Accumulo authorizations
       * -c, --catalog
            Catalog table name for GeoMesa
         -i, --instance
            Accumulo instance name
-        -mc, --mock
+        --mock
            Run everything with a mock accumulo instance instead of a real one
            Default: false
         -p, --password
            Accumulo password (will prompt if not supplied)
       * -u, --user
            Accumulo user name
-        -v, --visibilities
+        --visibilities
            Accumulo scan visibilities
         -z, --zookeepers
            Zookeepers (host[:port], comma separated)
@@ -645,20 +676,19 @@ To list the features on a specified catalog table, use the `list` command.
 ### querystats
 Export queries and statistics logged for raster tables by using the `querystats` command.
 
-####Usage (required options denoted with star):
-    $ geomesa help querystats
+#### Usage (required options denoted with star):
+    $ geomesa help queryrasterstats
     Export queries and statistics about the last X number of queries to a CSV file.
     Usage: querystats [options]
       Options:
-        -a, --auths
+        --auths
            Accumulo authorizations
         -i, --instance
            Accumulo instance name
-        -mc, --mock
+        --mock
            Run everything with a mock accumulo instance instead of a real one
-           (true/false)
            Default: false
-        -num, --number-of-records
+        -n, --number-of-records
            Number of query records to export from Accumulo
            Default: 1000
         -o, --output
@@ -669,19 +699,19 @@ Export queries and statistics logged for raster tables by using the `querystats`
            Accumulo table for storing raster data
       * -u, --user
            Accumulo user name
-        -v, --visibilities
+        --visibilities
            Accumulo scan visibilities
         -z, --zookeepers
            Zookeepers (host[:port], comma separated)
 
 
 #### Example command:
-    geomesa querystats -u username -p password -t somerastertable -num 10
+    geomesa queryrasterstats -u username -p password -t somerastertable -num 10
     
 ### tableconf
 To list, describe, and update the configuration parameters on a specified table, use the `tableconf` command. 
 
-####Usage (required options denoted with star):
+#### Usage (required options denoted with star):
     $ geomesa help tableconf
     Perform table configuration operations
     Usage: tableconf [options] [command] [command options]
@@ -689,15 +719,15 @@ To list, describe, and update the configuration parameters on a specified table,
         list      List the configuration parameters for a geomesa table
           Usage: list [options]
             Options:
-              -a, --auths
+              --auths
                  Accumulo authorizations
             * -c, --catalog
                  Catalog table name for GeoMesa
-            * -fn, --feature-name
+            * -f, --feature-name
                  Simple Feature Type name on which to operate
               -i, --instance
                  Accumulo instance name
-              -mc, --mock
+              --mock
                  Run everything with a mock accumulo instance instead of a real one
                  Default: false
               -p, --password
@@ -706,7 +736,7 @@ To list, describe, and update the configuration parameters on a specified table,
                  Table suffix to operate on (attr_idx, st_idx, or records)
             * -u, --user
                  Accumulo user name
-              -v, --visibilities
+              --visibilities
                  Accumulo scan visibilities
               -z, --zookeepers
                  Zookeepers (host[:port], comma separated)
@@ -714,18 +744,18 @@ To list, describe, and update the configuration parameters on a specified table,
         describe      Describe a given configuration parameter for a table
           Usage: describe [options]
             Options:
-              -a, --auths
+              --auths
                  Accumulo authorizations
             * -c, --catalog
                  Catalog table name for GeoMesa
-            * -fn, --feature-name
+            * -f, --feature-name
                  Simple Feature Type name on which to operate
               -i, --instance
                  Accumulo instance name
-              -mc, --mock
+              --mock
                  Run everything with a mock accumulo instance instead of a real one
                  Default: false
-            *     --param
+            * -P, --param
                  Accumulo table configuration param name (e.g. table.bloom.enabled)
               -p, --password
                  Accumulo password (will prompt if not supplied)
@@ -733,7 +763,7 @@ To list, describe, and update the configuration parameters on a specified table,
                  Table suffix to operate on (attr_idx, st_idx, or records)
             * -u, --user
                  Accumulo user name
-              -v, --visibilities
+              --visibilities
                  Accumulo scan visibilities
               -z, --zookeepers
                  Zookeepers (host[:port], comma separated)
@@ -741,20 +771,20 @@ To list, describe, and update the configuration parameters on a specified table,
         update      Update a given table configuration parameter
           Usage: update [options]
             Options:
-              -a, --auths
+              --auths
                  Accumulo authorizations
             * -c, --catalog
                  Catalog table name for GeoMesa
-            * -fn, --feature-name
+            * -f, --feature-name
                  Simple Feature Type name on which to operate
               -i, --instance
                  Accumulo instance name
-              -mc, --mock
+              --mock
                  Run everything with a mock accumulo instance instead of a real one
                  Default: false
             * -n, --new-value
                  New value of the property
-            *     --param
+            * -P, --param
                  Accumulo table configuration param name (e.g. table.bloom.enabled)
               -p, --password
                  Accumulo password (will prompt if not supplied)
@@ -762,28 +792,24 @@ To list, describe, and update the configuration parameters on a specified table,
                  Table suffix to operate on (attr_idx, st_idx, or records)
             * -u, --user
                  Accumulo user name
-              -v, --visibilities
+              --visibilities
                  Accumulo scan visibilities
               -z, --zookeepers
                  Zookeepers (host[:port], comma separated)
 
 
 #### Example commands:
-    geomesa tableconf list -u username -p password -c test_catalog -fn test_feature -t st_idx
-    geomesa tableconf describe -u username -p password -c test_catalog -fn test_feature -t attr_idx --param table.bloom.enabled
-    geomesa tableconf update -u username -p password -c test_catalog -fn test_feature -t records --param table.bloom.enabled -n true
+    geomesa tableconf list -u username -p password -c test_catalog -f test_feature -t st_idx
+    geomesa tableconf describe -u username -p password -c test_catalog -f test_feature -t attr_idx --param table.bloom.enabled
+    geomesa tableconf update -u username -p password -c test_catalog -f test_feature -t records --param table.bloom.enabled -n true
 
-### repl
-To drop into an interactive REPL, use the `repl` command. The REPL is the scala console with GeoMesa-specific
-functionality. In addition to normal GeoMesa usage, the scalding REPL is included. More details on the
-features exposed by scalding can be read here: [Scalding-REPL](https://github.com/twitter/scalding/wiki/Scalding-REPL)
+### version
+Prints out the version, git branch, and commit ID that the tools were built with.
 
-####Usage:
-    $ geomesa repl
-    # Launches the REPL. Enter commands just as you would at the scala repl.
-    $ geomesa repl hdfs
-    # Launches the REPL in distributed mode, where any jobs will be run on your hadoop cluster. Requires
-    # a local hadoop installation.
+#### Usage:
+    $geomesa help version
+    GeoMesa Version
+    Usage: version
 
-#### Example command:
-    geomesa repl
+#### Example commands:
+    geomesa version

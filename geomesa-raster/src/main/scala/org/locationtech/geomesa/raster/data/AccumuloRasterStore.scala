@@ -15,7 +15,7 @@ import java.util.{Map => JMap}
 
 import com.google.common.cache.CacheBuilder
 import com.google.common.collect.{ImmutableMap, ImmutableSetMultimap}
-import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 import org.apache.accumulo.core.client.{BatchWriterConfig, Connector, TableExistsException}
 import org.apache.accumulo.core.data.{Key, Mutation, Range, Value}
 import org.apache.accumulo.core.security.TablePermission
@@ -23,7 +23,7 @@ import org.geotools.coverage.grid.GridEnvelope2D
 import org.joda.time.DateTime
 import org.locationtech.geomesa.accumulo.index.Strategy._
 import org.locationtech.geomesa.accumulo.iterators.BBOXCombiner._
-import org.locationtech.geomesa.accumulo.stats.{RasterQueryStat, RasterQueryStatTransform, StatWriter}
+import org.locationtech.geomesa.accumulo.stats.{Stat, RasterQueryStat, RasterQueryStatTransform, StatWriter}
 import org.locationtech.geomesa.accumulo.util.SelfClosingIterator
 import org.locationtech.geomesa.raster._
 import org.locationtech.geomesa.raster.index.RasterIndexSchema
@@ -41,7 +41,7 @@ class AccumuloRasterStore(val connector: Connector,
                   writeMemoryConfig: Option[String] = None,
                   writeThreadsConfig: Option[Int] = None,
                   queryThreadsConfig: Option[Int] = None,
-                  collectStats: Boolean = false) extends MethodProfiling with StatWriter with Logging {
+                  collectStats: Boolean = false) extends MethodProfiling with StatWriter with LazyLogging {
   val writeMemory = writeMemoryConfig.getOrElse("10000").toLong
   val writeThreads = writeThreadsConfig.getOrElse(10)
   val bwConfig: BatchWriterConfig =
@@ -76,7 +76,7 @@ class AccumuloRasterStore(val connector: Connector,
                                  timings.time("scanning") - timings.time("planning"),
                                  timings.time("mosaic"),
                                  numRasters)
-      this.writeStat(stat, profileTable)
+      this.writeStat(stat)
     }
     image
   }
@@ -288,6 +288,7 @@ class AccumuloRasterStore(val connector: Connector,
     }
   }
 
+  def getStatTable(stat: Stat): String = profileTable
 }
 
 object AccumuloRasterStore {

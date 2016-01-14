@@ -10,8 +10,7 @@ package org.locationtech.geomesa.tools.ingest
 import java.io.{File, Serializable}
 import java.util.{Map => JMap}
 
-import com.twitter.scalding.Args
-import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 import org.geotools.coverage.grid.io.AbstractGridCoverage2DReader
 import org.geotools.coverageio.gdal.dted.DTEDReader
 import org.geotools.factory.Hints
@@ -24,7 +23,7 @@ import org.locationtech.geomesa.tools.Utils.Formats._
 
 import scala.collection.JavaConversions._
 
-trait RasterIngest extends Logging {
+trait RasterIngest extends LazyLogging {
   def getAccumuloRasterStoreConf(config: Map[String, Option[String]]): JMap[String, Serializable] =
     mapAsJavaMap(Map(
       dsp.instanceIdParam.getName   -> config(IngestRasterParams.ACCUMULO_INSTANCE).get,
@@ -54,24 +53,6 @@ trait RasterIngest extends Logging {
     val csConfig: JMap[String, Serializable] = getAccumuloRasterStoreConf(config)
 
     AccumuloRasterStore(csConfig)
-  }
-
-  def createRasterStore(args: Args): AccumuloRasterStore = {
-    val dsConfig: Map[String, Option[String]] =
-      Map(
-        IngestRasterParams.ZOOKEEPERS        -> args.optional(IngestRasterParams.ZOOKEEPERS),
-        IngestRasterParams.ACCUMULO_INSTANCE -> args.optional(IngestRasterParams.ACCUMULO_INSTANCE),
-        IngestRasterParams.ACCUMULO_USER     -> args.optional(IngestRasterParams.ACCUMULO_USER),
-        IngestRasterParams.ACCUMULO_PASSWORD -> args.optional(IngestRasterParams.ACCUMULO_PASSWORD),
-        IngestRasterParams.TABLE             -> args.optional(IngestRasterParams.TABLE),
-        IngestRasterParams.AUTHORIZATIONS    -> args.optional(IngestRasterParams.AUTHORIZATIONS),
-        IngestRasterParams.VISIBILITIES      -> args.optional(IngestRasterParams.VISIBILITIES),
-        IngestRasterParams.WRITE_MEMORY      -> args.optional(IngestRasterParams.WRITE_MEMORY),
-        IngestRasterParams.WRITE_THREADS     -> args.optional(IngestRasterParams.WRITE_THREADS),
-        IngestRasterParams.QUERY_THREADS     -> args.optional(IngestRasterParams.QUERY_THREADS),
-        IngestRasterParams.ACCUMULO_MOCK     -> args.optional(IngestRasterParams.ACCUMULO_MOCK)
-      )
-    createRasterStore(dsConfig)
   }
 
   def getReader(imageFile: File, imageType: String): AbstractGridCoverage2DReader = {

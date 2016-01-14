@@ -13,7 +13,7 @@ import java.lang.{Double => jDouble, Integer => jInt}
 import java.util.zip.{ZipEntry, ZipOutputStream}
 import java.util.{Date, Iterator => jIterator}
 
-import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 import com.vividsolutions.jts.geom._
 import org.apache.commons.csv.{CSVFormat, CSVRecord}
 import org.apache.commons.io.FilenameUtils
@@ -23,8 +23,7 @@ import org.geotools.data.simple.{SimpleFeatureCollection, SimpleFeatureStore}
 import org.geotools.feature.DefaultFeatureCollection
 import org.geotools.feature.simple.SimpleFeatureBuilder
 import org.locationtech.geomesa.accumulo.csv.CSVParser._
-import org.locationtech.geomesa.accumulo.util.SftBuilder
-import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
+import org.locationtech.geomesa.utils.geotools.{SftBuilder, SimpleFeatureTypes}
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 
 import scala.collection.JavaConversions._
@@ -32,7 +31,7 @@ import scala.io.Source
 
 case class TypeSchema(name: String, schema: String, latLonFields: Option[(String, String)])
 
-package object csv extends Logging {
+package object csv extends LazyLogging {
 
   def guessTypes(csvFile: File, hasHeader: Boolean): TypeSchema = {
     val typename = FilenameUtils.getBaseName(csvFile.getName)
