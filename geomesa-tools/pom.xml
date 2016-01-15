@@ -65,6 +65,13 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-csv</artifactId>
         </dependency>
+
+        <!-- needed in the lib dir -->
+        <dependency>
+            <groupId>org.scala-lang.modules</groupId>
+            <artifactId>scala-xml_2.11</artifactId>
+        </dependency>
+
         <!-- provided dependencies -->
         <dependency>
             <groupId>org.apache.accumulo</groupId>
@@ -117,6 +124,12 @@
             <groupId>com.beust</groupId>
             <artifactId>jcommander</artifactId>
         </dependency>
+        <dependency>
+            <!-- 'works with' due to license issues -->
+            <groupId>javax.media</groupId>
+            <artifactId>jai_core</artifactId>
+        </dependency>
+
         <!-- test deps -->
         <dependency>
             <groupId>org.specs2</groupId>
@@ -126,11 +139,6 @@
         <dependency>
             <groupId>org.apache.accumulo</groupId>
             <artifactId>accumulo-test</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>javax.media</groupId>
-            <artifactId>jai_core</artifactId>
-            <scope>provided</scope>
         </dependency>
     </dependencies>
 
@@ -174,7 +182,7 @@
                         <phase>package</phase>
                         <configuration>
                             <attach>true</attach>
-                            <finalName>geomesa-${project.version}</finalName>
+                            <finalName>geomesa-tools-${project.version}</finalName>
                             <tarLongFileMode>gnu</tarLongFileMode>
                             <descriptors>
                                 <descriptor>src/main/assemblies/binary-release.xml</descriptor>

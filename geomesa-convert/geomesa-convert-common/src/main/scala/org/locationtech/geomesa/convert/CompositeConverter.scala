@@ -1,12 +1,14 @@
 /***********************************************************************
-* Copyright (c) 2013-2015 Commonwealth Computer Research, Inc.
+* Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
 * All rights reserved. This program and the accompanying materials
-* are made available under the terms of the Apache License, Version 2.0 which
-* accompanies this distribution and is available at
+* are made available under the terms of the Apache License, Version 2.0
+* which accompanies this distribution and is available at
 * http://www.opensource.org/licenses/apache2.0.php.
 *************************************************************************/
 
 package org.locationtech.geomesa.convert
+
+import java.io.InputStream
 
 import com.typesafe.config.Config
 import org.locationtech.geomesa.convert.Transformers.{Counter, EvaluationContext, Predicate}
@@ -88,7 +90,9 @@ class CompositeConverter[I](val targetSFT: SimpleFeatureType, converters: Seq[(P
     }
   }
 
+  override def processSingleInput(i: I, ec: EvaluationContext): Seq[SimpleFeature] = ???
 
+  override def process(is: InputStream, ec: EvaluationContext): Iterator[SimpleFeature] = ???
 }
 
 case class CompositeEvaluationContext(contexts: IndexedSeq[EvaluationContext]) extends EvaluationContext {

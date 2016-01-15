@@ -1,10 +1,11 @@
 /***********************************************************************
-* Copyright (c) 2013-2015 Commonwealth Computer Research, Inc.
+* Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
 * All rights reserved. This program and the accompanying materials
-* are made available under the terms of the Apache License, Version 2.0 which
-* accompanies this distribution and is available at
+* are made available under the terms of the Apache License, Version 2.0
+* which accompanies this distribution and is available at
 * http://www.opensource.org/licenses/apache2.0.php.
 *************************************************************************/
+
 package org.locationtech.geomesa.tools
 
 import org.geotools.data.DataStoreFinder
@@ -26,7 +27,7 @@ class DataStoreHelper(params: GeoMesaParams) extends AccumuloProperties {
     dsParams.tableNameParam.getName  -> params.catalog,
     dsParams.visibilityParam.getName -> Option(params.visibilities).orNull,
     dsParams.authsParam.getName      -> Option(params.auths).orNull,
-    dsParams.mockParam.getName       -> params.useMock.toString)
+    dsParams.mockParam.getName       -> params.useMock.toString).filter(_._2 != null)
 
   /**
    * Get a handle to a datastore for a pre-existing catalog table

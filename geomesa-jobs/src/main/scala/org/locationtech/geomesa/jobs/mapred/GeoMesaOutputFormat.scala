@@ -1,8 +1,8 @@
 /***********************************************************************
-* Copyright (c) 2013-2015 Commonwealth Computer Research, Inc.
+* Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
 * All rights reserved. This program and the accompanying materials
-* are made available under the terms of the Apache License, Version 2.0 which
-* accompanies this distribution and is available at
+* are made available under the terms of the Apache License, Version 2.0
+* which accompanies this distribution and is available at
 * http://www.opensource.org/licenses/apache2.0.php.
 *************************************************************************/
 
@@ -105,12 +105,14 @@ class GeoMesaRecordWriter(params: Map[String, String], delegate: RecordWriter[Te
 
     // ensure that the type has been created if we haven't seen it before
     val sft = sftCache.getOrElseUpdate(sftName, {
-      // this is a no-op if schema is already created, and is thread-safe from different mappers
-      ds.createSchema(value.getFeatureType)
-      // short sleep to ensure that feature type is fully written if it is happening in some other thread
-      Thread.sleep(5000)
-      // load the sft from the data store to ensure all user-data gets set appropriately
-      ds.getSchema(sftName)
+      // schema operations are thread-safe
+      val existing = ds.getSchema(sftName)
+      if (existing == null) {
+        ds.createSchema(value.getFeatureType)
+        ds.getSchema(sftName)
+      } else {
+        existing
+      }
     })
 
     val writers = writerCache.getOrElseUpdate(sftName, {
