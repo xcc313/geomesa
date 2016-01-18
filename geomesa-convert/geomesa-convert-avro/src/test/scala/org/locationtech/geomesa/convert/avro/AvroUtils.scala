@@ -1,8 +1,8 @@
 /***********************************************************************
-* Copyright (c) 2013-2015 Commonwealth Computer Research, Inc.
+* Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
 * All rights reserved. This program and the accompanying materials
-* are made available under the terms of the Apache License, Version 2.0 which
-* accompanies this distribution and is available at
+* are made available under the terms of the Apache License, Version 2.0
+* which accompanies this distribution and is available at
 * http://www.opensource.org/licenses/apache2.0.php.
 *************************************************************************/
 
@@ -33,9 +33,10 @@ trait AvroUtils {
   val rec2 = innerBuilder.set("k", "lon").set("v", 45.0).build
   val rec3 = innerBuilder.set("k", "prop3").set("v", " foo ").build
   val rec4 = innerBuilder.set("k", "prop4").set("v", 1.0).build
+  val rec5 = innerBuilder.set("k", "dtg").set("v", "2015-01-02").build
 
   val outerBuilder = new GenericRecordBuilder(tObjSchema)
-  val tObj = outerBuilder.set("kvmap", List(rec1, rec2, rec3, rec4).asJava).build()
+  val tObj = outerBuilder.set("kvmap", List(rec1, rec2, rec3, rec4, rec5).asJava).build()
 
   val compositeBuilder = new GenericRecordBuilder(schema)
   val obj = compositeBuilder.set("content", tObj).build()
