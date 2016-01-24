@@ -17,15 +17,14 @@ import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.{LongWritable, Text}
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
-import org.apache.hadoop.mapreduce.{Counter, Job, Mapper}
+import org.apache.hadoop.mapreduce.{Job, JobStatus, Mapper}
+import org.geotools.data.DataUtilities
 import org.locationtech.geomesa.accumulo.data.AccumuloDataStore
 import org.locationtech.geomesa.features.ScalaSimpleFeature
-import org.locationtech.geomesa.jobs.{GeoMesaConfigurator, JobUtils}
 import org.locationtech.geomesa.jobs.mapreduce.GeoMesaOutputFormat
+import org.locationtech.geomesa.jobs.{GeoMesaConfigurator, JobUtils}
 import org.locationtech.geomesa.utils.classpath.ClassPathUtils
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
-
-import ConverterInputFormat.{Counters => C }
 
 import scala.collection.JavaConversions._
 
@@ -34,7 +33,8 @@ object ConverterIngestJob extends LazyLogging {
   def run(dsParams: Map[String, String],
           sft: SimpleFeatureType,
           converterConfig: Config,
-          paths: Seq[String]): (Long, Long) = {
+          paths: Seq[String],
+          statusCallback: (Float, Long, Long, Boolean) => Unit = (_, _, _, _) => Unit): (Long, Long) = {
     val job = Job.getInstance(new Configuration, "GeoMesa Converter Ingest")
 
     JobUtils.setLibJars(job.getConfiguration, libJars = ingestLibJars, searchPath = ingestJarSearchPath)
@@ -54,13 +54,31 @@ object ConverterIngestJob extends LazyLogging {
     GeoMesaConfigurator.setFeatureTypeOut(job.getConfiguration, sft.getTypeName)
     GeoMesaOutputFormat.configureDataStore(job, dsParams)
 
-    logger.info("Submitting geomesa convert job")
     job.submit()
-    job.waitForCompletion(true)
+    logger.info(s"Tracking available at ${job.getStatus.getTrackingUrl}")
 
-    val success = job.getCounters.findCounter(C.Group, C.Success).getValue
-    val failed = job.getCounters.findCounter(C.Group, C.Failure).getValue
-    (success, failed)
+    import ConverterInputFormat.{Counters => ConvertCounters}
+    import GeoMesaOutputFormat.{Counters => OutCounters}
+
+    val failCounters =
+      Seq((ConvertCounters.Group, ConvertCounters.Failed), (OutCounters.Group, OutCounters.Failed))
+
+    def written: Long = job.getCounters.findCounter(OutCounters.Group, OutCounters.Written).getValue
+    def failed: Long = failCounters.map(c => job.getCounters.findCounter(c._1, c._2).getValue).sum
+
+    while (!job.isComplete) {
+      if (job.getStatus.getState != JobStatus.State.PREP) {
+        statusCallback(job.mapProgress(), written, failed, false) // we don't have any reducers, just track mapper progress
+      }
+      Thread.sleep(1000)
+    }
+    statusCallback(job.mapProgress(), written, failed, true)
+
+    if (!job.isSuccessful) {
+      logger.error(s"Job failed with state ${job.getStatus.getState} due to: ${job.getStatus.getFailureInfo}")
+    }
+
+    (written, failed)
   }
 
   def ingestLibJars = {
@@ -88,15 +106,9 @@ class ConvertMapper extends Mapper[LongWritable, SimpleFeature, Text, SimpleFeat
   type Context = Mapper[LongWritable, SimpleFeature, Text, SimpleFeature]#Context
 
   private val text: Text = new Text
-  private var written: Counter = null
-
-  override def setup(context: Context) = {
-    written = context.getCounter(C.Group, C.Written)
-  }
 
   override def map(key: LongWritable, sf: SimpleFeature, context: Context): Unit = {
-    logger.debug(s"map key ${key.toString}")
+    logger.debug(s"map key ${key.toString}, map value ${DataUtilities.encodeFeature(sf)}")
     context.write(text, sf)
-    written.increment(1)
   }
 }
