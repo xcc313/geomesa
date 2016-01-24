@@ -1,12 +1,13 @@
 package org.locationtech.geomesa.cassandra.data
 
 import java.io.Serializable
+import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.util
-import java.util.UUID
+import java.util.{Date, UUID}
 
-import com.datastax.driver.core.{Cluster, Row, Session}
-import com.vividsolutions.jts.geom.{Envelope, Coordinate}
+import com.datastax.driver.core.{Cluster, DataType, Row, Session}
+import com.vividsolutions.jts.geom.{Coordinate, Envelope}
 import org.geotools.data.DataAccessFactory.Param
 import org.geotools.data.simple.DelegateSimpleFeatureReader
 import org.geotools.data.store.{ContentDataStore, ContentEntry, ContentFeatureSource, ContentFeatureStore}
@@ -19,7 +20,6 @@ import org.geotools.referencing.crs.DefaultGeographicCRS
 import org.joda.time.{DateTime, Seconds, Weeks}
 import org.locationtech.geomesa.curve.Z3SFC
 import org.locationtech.geomesa.features.ScalaSimpleFeature
-import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.locationtech.geomesa.utils.text.WKBUtils
 import org.locationtech.sfcurve.zorder.ZCurve2D
 import org.opengis.feature.`type`.Name
@@ -30,21 +30,55 @@ import scala.util.Random
 object Test {
   val cluster = Cluster.builder().addContactPoint("127.0.0.1").build()
   val session = cluster.connect("test")
-
 }
 
 class CassandraDataStore(session: Session) extends ContentDataStore {
   import scala.collection.JavaConversions._
 
+  def getSimpleType(klass: Class[_]): DataType = klass match {
+    case t if classOf[ByteBuffer].isAssignableFrom(klass) => DataType.blob()
+    case t if classOf[Integer].isAssignableFrom(klass) => DataType.cint()
+    case t if classOf[Long].isAssignableFrom(klass) => DataType.bigint()
+    case t if classOf[Float].isAssignableFrom(klass) => DataType.cfloat()
+    case t if classOf[Double].isAssignableFrom(klass) => DataType.cdouble()
+    case t if classOf[Boolean].isAssignableFrom(klass) => DataType.cboolean()
+    case t if classOf[BigDecimal].isAssignableFrom(klass) => DataType.decimal()
+    case t if classOf[BigInteger].isAssignableFrom(klass) => DataType.varint()
+    case t if classOf[String].isAssignableFrom(klass) => DataType.text()
+    case t if classOf[Date].isAssignableFrom(klass) => DataType.timestamp()
+    case t if classOf[UUID].isAssignableFrom(klass) => DataType.uuid()
+  }
+
   override def createFeatureSource(contentEntry: ContentEntry): ContentFeatureSource =
     new CassandraFeatureStore(contentEntry, session)
 
-  override def createTypeNames(): util.List[Name] = List(new NameImpl("foo"))
+
+  override def createSchema(featureType: SimpleFeatureType): Unit = {
+    val cols =
+      featureType.getAttributeDescriptors.map { ad =>
+        s"${ad.getLocalName}  ${getSimpleType(ad.getType.getBinding).getName.toString}"
+      }.mkString(",")
+    val stmt = s"create ${featureType.getTypeName} ($cols)"
+    session.execute(stmt)
+  }
+
+
+  override def getSchema(name: Name): SimpleFeatureType = super.getSchema(name)
+
+  override def createTypeNames(): util.List[Name] =
+    session.execute("DESCRIBE TABLES").iterator().map { i => new NameImpl(i.getString(0)) }.toList
 }
 
 class CassandraFeatureStore(entry: ContentEntry, session: Session) extends ContentFeatureStore(entry, Query.ALL) {
-  val sft = SimpleFeatureTypes.createType("foo", "featureid:String,*geom:Point:srid=4326,dtg:Date")
-  override def getWriterInternal(query: Query, i: Int): FW[SimpleFeatureType, SimpleFeature] = ???
+  import scala.collection.JavaConversions._
+
+  private val sft: SimpleFeatureType = entry.getState(getTransaction).getFeatureType
+  private val attrNames = sft.getAttributeDescriptors.map(_.getLocalName)
+  private val selectClause = attrNames.mkString(",")
+  private val table = sft.getTypeName
+
+  override def getWriterInternal(query: Query, i: Int): FW[SimpleFeatureType, SimpleFeature] =
+    new CassandraFeatureWriter(sft, session)
 
   override def buildFeatureType(): SimpleFeatureType = sft
 
@@ -59,6 +93,7 @@ class CassandraFeatureStore(entry: ContentEntry, session: Session) extends Conte
   def secondsInCurrentWeek(dtg: DateTime, weeks: Weeks) =
     Seconds.secondsBetween(EPOCH, dtg).getSeconds - weeks.toStandardSeconds.getSeconds
 
+  private val geoTimeQuery = session.prepare(s"select $selectClause from $table where (pkz = ?) and (z31 >= ?) and (z31 <= ?")
   override def getReaderInternal(query: Query): FeatureReader[SimpleFeatureType, SimpleFeature] = {
     import org.locationtech.geomesa.filter._
     import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType.RichSimpleFeatureType
@@ -69,8 +104,6 @@ class CassandraFeatureStore(entry: ContentEntry, session: Session) extends Conte
     val interval = FilterHelper.extractInterval(dtgFilters, sft.getDtgField)
     val sew = epochWeeks(interval.getStart).getWeeks
     val eew = epochWeeks(interval.getEnd).getWeeks
-
-
 
     val rows =
       (sew to eew).flatMap { dt =>
@@ -93,7 +126,7 @@ class CassandraFeatureStore(entry: ContentEntry, session: Session) extends Conte
     val features = rows.flatMap { r =>
       z3ranges.flatMap { z =>
         val q = s"select * from geo where (pkz = $r) AND $z"
-        println(q)
+        // println(q)
         session.execute(q).all()
       }
     }.map(convertRowToSF)
@@ -159,7 +192,7 @@ object CassandraPrimaryKey {
   val SFC3D = new Z3SFC
 }
 
-class FeatureWriter(sft: SimpleFeatureType, session: Session) extends FW[SimpleFeatureType, SimpleFeature] {
+class CassandraFeatureWriter(sft: SimpleFeatureType, session: Session) extends FW[SimpleFeatureType, SimpleFeature] {
   val EPOCH = new DateTime(0)
 
   def epochWeeks(dtg: DateTime) = Weeks.weeksBetween(EPOCH, new DateTime(dtg))
@@ -173,16 +206,6 @@ class FeatureWriter(sft: SimpleFeatureType, session: Session) extends FW[SimpleF
 
   private val SFC = new Z3SFC
   private var curFeature: SimpleFeature = null
-//  private val dtgIndex = 4
-/*
-    sft.getAttributeDescriptors
-      .zipWithIndex
-      .find { case (ad, idx) => classOf[java.util.Date].equals(ad.getType.getBinding) }
-      .map  { case (_, idx)  => idx }
-      .getOrElse(throw new RuntimeException("No date attribute"))
-*/
-
-//  private val encoder = new KryoFeatureSerializer(sft)
 
   val gf = JTSFactoryFinder.getGeometryFactory
   override def next(): SimpleFeature = {
