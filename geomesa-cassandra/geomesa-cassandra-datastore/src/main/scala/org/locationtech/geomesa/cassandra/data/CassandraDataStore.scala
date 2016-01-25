@@ -39,7 +39,6 @@ object CassandraDataStore {
 
   val typeMap = HashBiMap.create[Class[_], DataType]
   typeMap.putAll(Map(
-    //classOf[ByteBuffer] -> DataType.blob(),
     classOf[Integer]    -> DataType.cint(),
     classOf[Long]       -> DataType.bigint(),
     classOf[Float]      -> DataType.cfloat(),
@@ -165,12 +164,14 @@ class CassandraFeatureStore(entry: ContentEntry, session: Session, tableMetadata
     val z3ranges =
       org.locationtech.geomesa.cassandra.data.CassandraPrimaryKey.SFC3D.ranges((lx, ux), (ly, uy), (0, Weeks.weeks(1).toStandardSeconds.getSeconds))
 
-    val features = rows.flatMap { r =>
-      z3ranges.flatMap { z =>
-        val q = geoTimeQuery.bind(r: java.lang.Integer, z._1: java.lang.Long, z._2: java.lang.Long  )
-        session.execute(q).all()
+    val queries =
+      rows.flatMap { r =>
+        z3ranges.map { z =>
+          geoTimeQuery.bind(r: java.lang.Integer, z._1: java.lang.Long, z._2: java.lang.Long  )
+        }
       }
-    }.map(convertRowToSF(_))
+
+    val features = queries.map { q => session.executeAsync(q) }.par.flatMap { f => f.get().iterator().map(r => convertRowToSF(r)) }
 
     new DelegateSimpleFeatureReader(sft, new DelegateSimpleFeatureIterator(features.iterator))
   }
