@@ -6,76 +6,128 @@ import java.nio.ByteBuffer
 import java.util
 import java.util.{Date, UUID}
 
-import com.datastax.driver.core.{Cluster, DataType, Row, Session}
-import com.vividsolutions.jts.geom.{Coordinate, Envelope}
+import com.datastax.driver.core._
+import com.google.common.collect.HashBiMap
+import com.vividsolutions.jts.geom.{Envelope, Geometry, Point}
 import org.geotools.data.DataAccessFactory.Param
 import org.geotools.data.simple.DelegateSimpleFeatureReader
 import org.geotools.data.store.{ContentDataStore, ContentEntry, ContentFeatureSource, ContentFeatureStore}
 import org.geotools.data.{AbstractDataStoreFactory, DataStore, FeatureReader, FeatureWriter => FW, Query}
-import org.geotools.feature.NameImpl
 import org.geotools.feature.collection.DelegateSimpleFeatureIterator
+import org.geotools.feature.simple.{SimpleFeatureBuilder, SimpleFeatureTypeBuilder}
+import org.geotools.feature.{AttributeTypeBuilder, NameImpl}
 import org.geotools.filter.visitor.ExtractBoundsFilterVisitor
-import org.geotools.geometry.jts.{JTSFactoryFinder, ReferencedEnvelope}
+import org.geotools.geometry.jts.ReferencedEnvelope
 import org.geotools.referencing.crs.DefaultGeographicCRS
 import org.joda.time.{DateTime, Seconds, Weeks}
+import org.locationtech.geomesa.cassandra.data.CassandraDataStore.FieldSerializer
 import org.locationtech.geomesa.curve.Z3SFC
 import org.locationtech.geomesa.features.ScalaSimpleFeature
+import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType
 import org.locationtech.geomesa.utils.text.WKBUtils
 import org.locationtech.sfcurve.zorder.ZCurve2D
-import org.opengis.feature.`type`.Name
+import org.opengis.feature.`type`.{AttributeDescriptor, Name}
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
-
-import scala.util.Random
 
 object Test {
   val cluster = Cluster.builder().addContactPoint("127.0.0.1").build()
   val session = cluster.connect("test")
 }
 
-class CassandraDataStore(session: Session) extends ContentDataStore {
+object CassandraDataStore {
   import scala.collection.JavaConversions._
 
-  def getSimpleType(klass: Class[_]): DataType = klass match {
-    case t if classOf[ByteBuffer].isAssignableFrom(klass) => DataType.blob()
-    case t if classOf[Integer].isAssignableFrom(klass) => DataType.cint()
-    case t if classOf[Long].isAssignableFrom(klass) => DataType.bigint()
-    case t if classOf[Float].isAssignableFrom(klass) => DataType.cfloat()
-    case t if classOf[Double].isAssignableFrom(klass) => DataType.cdouble()
-    case t if classOf[Boolean].isAssignableFrom(klass) => DataType.cboolean()
-    case t if classOf[BigDecimal].isAssignableFrom(klass) => DataType.decimal()
-    case t if classOf[BigInteger].isAssignableFrom(klass) => DataType.varint()
-    case t if classOf[String].isAssignableFrom(klass) => DataType.text()
-    case t if classOf[Date].isAssignableFrom(klass) => DataType.timestamp()
-    case t if classOf[UUID].isAssignableFrom(klass) => DataType.uuid()
+  val typeMap = HashBiMap.create[Class[_], DataType]
+  typeMap.putAll(Map(
+    //classOf[ByteBuffer] -> DataType.blob(),
+    classOf[Integer]    -> DataType.cint(),
+    classOf[Long]       -> DataType.bigint(),
+    classOf[Float]      -> DataType.cfloat(),
+    classOf[Double]     -> DataType.cdouble(),
+    classOf[Boolean]    -> DataType.cboolean(),
+    classOf[BigDecimal] -> DataType.decimal(),
+    classOf[BigInteger] -> DataType.varint(),
+    classOf[String]     -> DataType.text(),
+    classOf[Date]       -> DataType.timestamp(),
+    classOf[UUID]       -> DataType.uuid(),
+    classOf[Point]      -> DataType.blob()
+  ))
+
+  def getSchema(name: Name, table: TableMetadata): SimpleFeatureType = {
+    val cols = table.getColumns.filterNot { c => c.getName == "pkz" || c.getName == "z31" || c.getName == "fid" }
+    val attrTypeBuilder = new AttributeTypeBuilder()
+    val attributes = cols.map { c =>
+      val it = typeMap.inverse().get(c.getType)
+      attrTypeBuilder.binding(it).buildDescriptor(c.getName)
+    }
+    // TODO: allow user data to set dtg field
+    val dtgAttribute = attributes.find(_.getType.getBinding.isAssignableFrom(classOf[java.util.Date])).head
+    val sftBuilder = new SimpleFeatureTypeBuilder()
+    sftBuilder.addAll(attributes)
+    sftBuilder.setName(name.getLocalPart)
+    val sft = sftBuilder.buildFeatureType()
+    sft.getUserData.put(RichSimpleFeatureType.DEFAULT_DATE_KEY, dtgAttribute.getLocalName)
+    sft
   }
 
+  sealed trait FieldSerializer {
+    def serialize(o: java.lang.Object): java.lang.Object
+    def deserialize(o: java.lang.Object): java.lang.Object
+  }
+  case object GeomSerializer extends FieldSerializer {
+    override def serialize(o: Object): AnyRef = {
+      val geom = o.asInstanceOf[Point]
+      ByteBuffer.wrap(WKBUtils.write(geom))
+    }
+
+    override def deserialize(o: Object): AnyRef = WKBUtils.read(o.asInstanceOf[ByteBuffer].array())
+  }
+
+  case object DefaultSerializer extends FieldSerializer {
+    override def serialize(o: Object): AnyRef = o
+    override def deserialize(o: Object): AnyRef = o
+  }
+
+  object FieldSerializer {
+    def apply(attrDescriptor: AttributeDescriptor): FieldSerializer = {
+      if(classOf[Geometry].isAssignableFrom(attrDescriptor.getType.getBinding)) GeomSerializer
+      else DefaultSerializer
+    }
+  }
+
+}
+
+class CassandraDataStore(session: Session, keyspaceMetadata: KeyspaceMetadata) extends ContentDataStore {
+  import scala.collection.JavaConversions._
+
   override def createFeatureSource(contentEntry: ContentEntry): ContentFeatureSource =
-    new CassandraFeatureStore(contentEntry, session)
+    new CassandraFeatureStore(contentEntry, session, keyspaceMetadata.getTable(contentEntry.getTypeName))
 
 
   override def createSchema(featureType: SimpleFeatureType): Unit = {
     val cols =
       featureType.getAttributeDescriptors.map { ad =>
-        s"${ad.getLocalName}  ${getSimpleType(ad.getType.getBinding).getName.toString}"
+        s"${ad.getLocalName}  ${CassandraDataStore.typeMap(ad.getType.getBinding).getName.toString}"
       }.mkString(",")
-    val stmt = s"create ${featureType.getTypeName} ($cols)"
+    val colCreate = s"(pkz int, z31 bigint, fid text, $cols, PRIMARY KEY (pkz, z31))"
+    val stmt = s"create table ${featureType.getTypeName} $colCreate"
     session.execute(stmt)
   }
 
-
-  override def getSchema(name: Name): SimpleFeatureType = super.getSchema(name)
-
   override def createTypeNames(): util.List[Name] =
-    session.execute("DESCRIBE TABLES").iterator().map { i => new NameImpl(i.getString(0)) }.toList
+    keyspaceMetadata.getTables.map { t => new NameImpl(t.getName) }.toList
+
+
 }
 
-class CassandraFeatureStore(entry: ContentEntry, session: Session) extends ContentFeatureStore(entry, Query.ALL) {
+class CassandraFeatureStore(entry: ContentEntry, session: Session, tableMetadata: TableMetadata) extends ContentFeatureStore(entry, Query.ALL) {
   import scala.collection.JavaConversions._
 
-  private val sft: SimpleFeatureType = entry.getState(getTransaction).getFeatureType
+  private val sft: SimpleFeatureType = CassandraDataStore.getSchema(entry.getName, tableMetadata)
   private val attrNames = sft.getAttributeDescriptors.map(_.getLocalName)
-  private val selectClause = attrNames.mkString(",")
+  private val selectClause = (Array("fid") ++ attrNames).mkString(",")
   private val table = sft.getTypeName
+  private val deserializers = sft.getAttributeDescriptors.map { ad => FieldSerializer(ad) }
 
   override def getWriterInternal(query: Query, i: Int): FW[SimpleFeatureType, SimpleFeature] =
     new CassandraFeatureWriter(sft, session)
@@ -86,14 +138,7 @@ class CassandraFeatureStore(entry: ContentEntry, session: Session) extends Conte
 
   override def getCountInternal(query: Query): Int = 10
 
-  val EPOCH = new DateTime(0)
-
-  def epochWeeks(dtg: DateTime) = Weeks.weeksBetween(EPOCH, new DateTime(dtg))
-
-  def secondsInCurrentWeek(dtg: DateTime, weeks: Weeks) =
-    Seconds.secondsBetween(EPOCH, dtg).getSeconds - weeks.toStandardSeconds.getSeconds
-
-  private val geoTimeQuery = session.prepare(s"select $selectClause from $table where (pkz = ?) and (z31 >= ?) and (z31 <= ?")
+  private val geoTimeQuery = session.prepare(s"select $selectClause from $table where (pkz = ?) and (z31 >= ?) and (z31 <= ?)")
   override def getReaderInternal(query: Query): FeatureReader[SimpleFeatureType, SimpleFeature] = {
     import org.locationtech.geomesa.filter._
     import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType.RichSimpleFeatureType
@@ -102,8 +147,8 @@ class CassandraFeatureStore(entry: ContentEntry, session: Session) extends Conte
     val (lx, ly, ux, uy) = (re.getMinX, re.getMinY, re.getMaxX, re.getMaxY)
     val (dtgFilters, _) = partitionPrimaryTemporals(decomposeAnd(query.getFilter), sft)
     val interval = FilterHelper.extractInterval(dtgFilters, sft.getDtgField)
-    val sew = epochWeeks(interval.getStart).getWeeks
-    val eew = epochWeeks(interval.getEnd).getWeeks
+    val sew = CassandraPrimaryKey.epochWeeks(interval.getStart).getWeeks
+    val eew = CassandraPrimaryKey.epochWeeks(interval.getEnd).getWeeks
 
     val rows =
       (sew to eew).flatMap { dt =>
@@ -114,29 +159,30 @@ class CassandraFeatureStore(entry: ContentEntry, session: Session) extends Conte
         val maxz = CassandraPrimaryKey(dtg, re.getMaxX, re.getMaxY)
 
         val zranges = org.locationtech.geomesa.cassandra.data.CassandraPrimaryKey.SFC2D.toRanges(minz.x, minz.y, maxz.x, maxz.y)
-        zranges.flatMap { case (l, u) => (l to u).map { i => dtshift + i } }
+        zranges.flatMap { case (l, u) => (l to u).map { i => (dtshift + i).toInt } }
       }
 
     val z3ranges =
       org.locationtech.geomesa.cassandra.data.CassandraPrimaryKey.SFC3D.ranges((lx, ux), (ly, uy), (0, Weeks.weeks(1).toStandardSeconds.getSeconds))
-        .map { case (l, r) => s"(z31 >= $l) and (z31 <= $r)" }
-
-    import scala.collection.JavaConversions._
 
     val features = rows.flatMap { r =>
       z3ranges.flatMap { z =>
-        val q = s"select * from geo where (pkz = $r) AND $z"
-        // println(q)
+        val q = geoTimeQuery.bind(r: java.lang.Integer, z._1: java.lang.Long, z._2: java.lang.Long  )
         session.execute(q).all()
       }
-    }.map(convertRowToSF)
+    }.map(convertRowToSF(_))
 
     new DelegateSimpleFeatureReader(sft, new DelegateSimpleFeatureIterator(features.iterator))
   }
 
+
+  val builder = new SimpleFeatureBuilder(sft)
+  builder.setValidating(java.lang.Boolean.FALSE)
   def convertRowToSF(r: Row): SimpleFeature = {
-    println(r)
-    null
+    val attrs = deserializers.zipWithIndex.map { case (d, idx) => d.deserialize(r.getObject(idx + 1)) }
+    val fid = r.getString(0)
+    builder.reset()
+    builder.buildFeature(fid, attrs.toArray)
   }
 }
 
@@ -147,9 +193,8 @@ class CassandraDataStoreFactory extends AbstractDataStoreFactory {
     val ks = KEYSPACE.lookUp(map).asInstanceOf[String]
     val cluster = Cluster.builder().addContactPoint(cp).build()
     val session = cluster.connect(ks)
-    new CassandraDataStore(session)
+    new CassandraDataStore(session, cluster.getMetadata.getKeyspace(ks))
   }
-
 
   override def createNewDataStore(map: util.Map[String, Serializable]): DataStore = ???
 
@@ -193,24 +238,24 @@ object CassandraPrimaryKey {
 }
 
 class CassandraFeatureWriter(sft: SimpleFeatureType, session: Session) extends FW[SimpleFeatureType, SimpleFeature] {
-  val EPOCH = new DateTime(0)
-
-  def epochWeeks(dtg: DateTime) = Weeks.weeksBetween(EPOCH, new DateTime(dtg))
-
-  def secondsInCurrentWeek(dtg: DateTime, weeks: Weeks) =
-    Seconds.secondsBetween(EPOCH, dtg).getSeconds - weeks.toStandardSeconds.getSeconds
-
-  val stmt = session.prepare("INSERT INTO geo (feature_id, pkz, z31, x, y, geom, dtg) VALUES(?, ?, ?, ?, ?, ?, ?)")
-
+  import CassandraDataStore._
   import org.locationtech.geomesa.utils.geotools.Conversions._
+  import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType.RichSimpleFeatureType
 
-  private val SFC = new Z3SFC
+  import scala.collection.JavaConversions._
+
+  val cols = sft.getAttributeDescriptors.map { ad => ad.getLocalName }
+  val serializers = sft.getAttributeDescriptors.map { ad => FieldSerializer(ad) }
+  val geomField = sft.getGeomField
+  val geomIdx   = sft.getGeomIndex
+  val dtgField  = sft.getDtgField.get
+  val dtgIdx    = sft.getDtgIndex.get
+  val insert = session.prepare(s"INSERT INTO ${sft.getTypeName} (pkz, z31, fid, ${cols.mkString(",")}) values (${Seq.fill(3+cols.length)("?").mkString(",")})")
+
   private var curFeature: SimpleFeature = null
 
-  val gf = JTSFactoryFinder.getGeometryFactory
   override def next(): SimpleFeature = {
     curFeature = new ScalaSimpleFeature(UUID.randomUUID().toString, sft)
-    curFeature.setDefaultGeometry(gf.createPoint(new Coordinate(-180.0+Random.nextDouble()*360.0, -90.0 + Random.nextDouble()*180.0)))
     curFeature
   }
 
@@ -218,25 +263,23 @@ class CassandraFeatureWriter(sft: SimpleFeatureType, session: Session) extends F
 
   override def hasNext: Boolean = true
 
-  def rDate = (new DateTime("2015-01-01")).plusSeconds((Random.nextDouble*60*60*24*180).toInt)
-
   override def write(): Unit = {
-    // write
+
     val geom = curFeature.point
     val geo = ByteBuffer.wrap(WKBUtils.write(geom))
     val x = geom.getX
     val y = geom.getY
-  //  println(curFeature.getAttribute(dtgIndex).asInstanceOf[Date])
-    val dtg = rDate
-    val weeks = epochWeeks(dtg)
+    val dtg = new DateTime(curFeature.getAttribute(dtgIdx).asInstanceOf[java.util.Date])
+    val weeks = CassandraPrimaryKey.epochWeeks(dtg)
 
-    val secondsInWeek = secondsInCurrentWeek(dtg, weeks)
+    val secondsInWeek = CassandraPrimaryKey.secondsInCurrentWeek(dtg, weeks)
     val pk = CassandraPrimaryKey(dtg, x, y)
-    val z3 = SFC.index(x, y, secondsInWeek)
+    val z3 = CassandraPrimaryKey.SFC3D.index(x, y, secondsInWeek)
     val z31 = z3.z
 
-    println(s"dtg = $dtg")
-    session.execute(stmt.bind(curFeature.getID, Int.box(pk.idx), Long.box(z31): java.lang.Long, Double.box(x), Double.box(y), geo, dtg.toDate))
+    val bindings = Array(Int.box(pk.idx), Long.box(z31): java.lang.Long, curFeature.getID) ++
+      curFeature.getAttributes.zip(serializers).map { case (o, ser) => ser.serialize(o) }
+    session.execute(insert.bind(bindings: _*))
     curFeature = null
   }
 
