@@ -2,37 +2,36 @@ package org.locationtech.geomesa.cassandra.data
 
 import java.io.Serializable
 import java.math.BigInteger
+import java.net.URI
 import java.nio.ByteBuffer
 import java.util
 import java.util.{Date, UUID}
 
 import com.datastax.driver.core._
+import com.datastax.driver.core.policies.{DCAwareRoundRobinPolicy, DefaultRetryPolicy, TokenAwarePolicy}
 import com.google.common.collect.HashBiMap
 import com.vividsolutions.jts.geom.{Envelope, Geometry, Point}
 import org.geotools.data.DataAccessFactory.Param
 import org.geotools.data.simple.DelegateSimpleFeatureReader
-import org.geotools.data.store.{ContentDataStore, ContentEntry, ContentFeatureSource, ContentFeatureStore}
-import org.geotools.data.{AbstractDataStoreFactory, DataStore, FeatureReader, FeatureWriter => FW, Query}
+import org.geotools.data.store._
+import org.geotools.data.{FeatureWriter => FW, _}
 import org.geotools.feature.collection.DelegateSimpleFeatureIterator
 import org.geotools.feature.simple.{SimpleFeatureBuilder, SimpleFeatureTypeBuilder}
 import org.geotools.feature.{AttributeTypeBuilder, NameImpl}
 import org.geotools.filter.visitor.ExtractBoundsFilterVisitor
 import org.geotools.geometry.jts.ReferencedEnvelope
 import org.geotools.referencing.crs.DefaultGeographicCRS
+import org.geotools.util.KVP
 import org.joda.time.{DateTime, Seconds, Weeks}
 import org.locationtech.geomesa.cassandra.data.CassandraDataStore.FieldSerializer
+import org.locationtech.geomesa.convert.SimpleFeatureConverter
 import org.locationtech.geomesa.curve.Z3SFC
 import org.locationtech.geomesa.features.ScalaSimpleFeature
 import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType
-import org.locationtech.geomesa.utils.text.WKBUtils
+import org.locationtech.geomesa.utils.text.{ObjectPoolFactory, WKBUtils}
 import org.locationtech.sfcurve.zorder.ZCurve2D
 import org.opengis.feature.`type`.{AttributeDescriptor, Name}
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
-
-object Test {
-  val cluster = Cluster.builder().addContactPoint("127.0.0.1").build()
-  val session = cluster.connect("test")
-}
 
 object CassandraDataStore {
   import scala.collection.JavaConversions._
@@ -96,12 +95,11 @@ object CassandraDataStore {
 
 }
 
-class CassandraDataStore(session: Session, keyspaceMetadata: KeyspaceMetadata) extends ContentDataStore {
+class CassandraDataStore(session: Session, keyspaceMetadata: KeyspaceMetadata, ns: URI) extends ContentDataStore {
   import scala.collection.JavaConversions._
 
   override def createFeatureSource(contentEntry: ContentEntry): ContentFeatureSource =
-    new CassandraFeatureStore(contentEntry, session, keyspaceMetadata.getTable(contentEntry.getTypeName))
-
+    new CassandraFeatureStore(contentEntry)
 
   override def createSchema(featureType: SimpleFeatureType): Unit = {
     val cols =
@@ -113,39 +111,57 @@ class CassandraDataStore(session: Session, keyspaceMetadata: KeyspaceMetadata) e
     session.execute(stmt)
   }
 
+
+  override def createContentState(entry: ContentEntry): ContentState =
+    new CassandraContentState(entry, session, keyspaceMetadata.getTable(entry.getTypeName))
+
   override def createTypeNames(): util.List[Name] =
-    keyspaceMetadata.getTables.map { t => new NameImpl(t.getName) }.toList
+    keyspaceMetadata.getTables.map { t => new NameImpl(ns.toString, t.getName) }.toList
+}
+
+class CassandraContentState(entry: ContentEntry, val session: Session, val tableMetadata: TableMetadata) extends ContentState(entry) {
+  import scala.collection.JavaConversions._
+
+  val sft: SimpleFeatureType = CassandraDataStore.getSchema(entry.getName, tableMetadata)
+  val attrNames = sft.getAttributeDescriptors.map(_.getLocalName)
+  val selectClause = (Array("fid") ++ attrNames).mkString(",")
+  val table = sft.getTypeName
+  val deserializers = sft.getAttributeDescriptors.map { ad => FieldSerializer(ad) }
+  val geoTimeQuery =  session.prepare(s"select $selectClause from $table where (pkz = ?) and (z31 >= ?) and (z31 <= ?)")
+  val builderPool = ObjectPoolFactory(getBuilder, 10)
+  private def getBuilder = {
+    val builder = new SimpleFeatureBuilder(sft)
+    builder.setValidating(java.lang.Boolean.FALSE)
+    builder
+  }
 
 
 }
 
-class CassandraFeatureStore(entry: ContentEntry, session: Session, tableMetadata: TableMetadata) extends ContentFeatureStore(entry, Query.ALL) {
-  import scala.collection.JavaConversions._
+class CassandraFeatureStore(entry: ContentEntry) extends ContentFeatureStore(entry, Query.ALL) {
 
-  private val sft: SimpleFeatureType = CassandraDataStore.getSchema(entry.getName, tableMetadata)
-  private val attrNames = sft.getAttributeDescriptors.map(_.getLocalName)
-  private val selectClause = (Array("fid") ++ attrNames).mkString(",")
-  private val table = sft.getTypeName
-  private val deserializers = sft.getAttributeDescriptors.map { ad => FieldSerializer(ad) }
+  private lazy val contentState = entry.getState(getTransaction).asInstanceOf[CassandraContentState]
 
   override def getWriterInternal(query: Query, i: Int): FW[SimpleFeatureType, SimpleFeature] =
-    new CassandraFeatureWriter(sft, session)
+    new CassandraFeatureWriter(contentState.sft, contentState.session)
 
-  override def buildFeatureType(): SimpleFeatureType = sft
+  override def buildFeatureType(): SimpleFeatureType = contentState.sft
 
   override def getBoundsInternal(query: Query): ReferencedEnvelope = new ReferencedEnvelope(-180.0, 180.0, -90.0, 90.0, DefaultGeographicCRS.WGS84)
 
   override def getCountInternal(query: Query): Int = 10
 
-  private val geoTimeQuery = session.prepare(s"select $selectClause from $table where (pkz = ?) and (z31 >= ?) and (z31 <= ?)")
   override def getReaderInternal(query: Query): FeatureReader[SimpleFeatureType, SimpleFeature] = {
     import org.locationtech.geomesa.filter._
     import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType.RichSimpleFeatureType
+
+    import scala.collection.JavaConversions._
+
     // TODO: currently we assume that the query has a dtg between predicate and a bbox
     val re = query.getFilter.accept(ExtractBoundsFilterVisitor.BOUNDS_VISITOR, DefaultGeographicCRS.WGS84).asInstanceOf[Envelope]
     val (lx, ly, ux, uy) = (re.getMinX, re.getMinY, re.getMaxX, re.getMaxY)
-    val (dtgFilters, _) = partitionPrimaryTemporals(decomposeAnd(query.getFilter), sft)
-    val interval = FilterHelper.extractInterval(dtgFilters, sft.getDtgField)
+    val (dtgFilters, _) = partitionPrimaryTemporals(decomposeAnd(query.getFilter), contentState.sft)
+    val interval = FilterHelper.extractInterval(dtgFilters, contentState.sft.getDtgField)
     val sew = CassandraPrimaryKey.epochWeeks(interval.getStart).getWeeks
     val eew = CassandraPrimaryKey.epochWeeks(interval.getEnd).getWeeks
 
@@ -167,20 +183,19 @@ class CassandraFeatureStore(entry: ContentEntry, session: Session, tableMetadata
     val queries =
       rows.flatMap { r =>
         z3ranges.map { z =>
-          geoTimeQuery.bind(r: java.lang.Integer, z._1: java.lang.Long, z._2: java.lang.Long  )
+         contentState.geoTimeQuery.bind(r: java.lang.Integer, z._1: java.lang.Long, z._2: java.lang.Long)
         }
       }
 
-    val features = queries.map { q => session.executeAsync(q) }.par.flatMap { f => f.get().iterator().map(r => convertRowToSF(r)) }
+    val features = contentState.builderPool.withResource { builder =>
+      queries.map { q => contentState.session.executeAsync(q) }.flatMap { f => f.get().iterator().map(r => convertRowToSF(r, builder)) }
+    }
 
-    new DelegateSimpleFeatureReader(sft, new DelegateSimpleFeatureIterator(features.iterator))
+    new DelegateSimpleFeatureReader(contentState.sft, new DelegateSimpleFeatureIterator(features.iterator))
   }
 
-
-  val builder = new SimpleFeatureBuilder(sft)
-  builder.setValidating(java.lang.Boolean.FALSE)
-  def convertRowToSF(r: Row): SimpleFeature = {
-    val attrs = deserializers.zipWithIndex.map { case (d, idx) => d.deserialize(r.getObject(idx + 1)) }
+  def convertRowToSF(r: Row, builder: SimpleFeatureBuilder): SimpleFeature = {
+    val attrs = contentState.deserializers.zipWithIndex.map { case (d, idx) => d.deserialize(r.getObject(idx + 1)) }
     val fid = r.getString(0)
     builder.reset()
     builder.buildFeature(fid, attrs.toArray)
@@ -192,19 +207,27 @@ class CassandraDataStoreFactory extends AbstractDataStoreFactory {
   override def createDataStore(map: util.Map[String, Serializable]): DataStore = {
     val cp = CONTACT_POINT.lookUp(map).asInstanceOf[String]
     val ks = KEYSPACE.lookUp(map).asInstanceOf[String]
-    val cluster = Cluster.builder().addContactPoint(cp).build()
+    val ns = NAMESPACEP.lookUp(map).asInstanceOf[URI]
+    val cluster =
+      Cluster.builder()
+        .addContactPoint(cp)
+        .withQueryOptions(new QueryOptions().setConsistencyLevel(ConsistencyLevel.ONE))
+        .withRetryPolicy(DefaultRetryPolicy.INSTANCE)
+        .withLoadBalancingPolicy(new TokenAwarePolicy(DCAwareRoundRobinPolicy.builder().build()))
+        .build()
     val session = cluster.connect(ks)
-    new CassandraDataStore(session, cluster.getMetadata.getKeyspace(ks))
+    new CassandraDataStore(session, cluster.getMetadata.getKeyspace(ks), ns)
   }
 
   override def createNewDataStore(map: util.Map[String, Serializable]): DataStore = ???
 
-  override def getDescription: String = ""
+  override def getDescription: String = "GeoMesa Cassandra Data Store"
 
-  override def getParametersInfo: Array[Param] = Array(CONTACT_POINT, KEYSPACE)
+  override def getParametersInfo: Array[Param] = Array(CONTACT_POINT, KEYSPACE, NAMESPACEP)
 
-  val CONTACT_POINT = new Param("geomesa.cassandra.contact.point", classOf[String])
-  val KEYSPACE      = new Param("geomesa.cassandra.keyspace", classOf[String])
+  val CONTACT_POINT = new Param("geomesa.cassandra.contact.point"  , classOf[String], "URL to Cassandra",   true)
+  val KEYSPACE      = new Param("geomesa.cassandra.keyspace"       , classOf[String], "Cassandra Keyspace", true)
+  val NAMESPACEP    = new Param("namespace", classOf[URI], "uri to a the namespace", false, null, new KVP(Parameter.LEVEL, "advanced"))
 }
 
 
