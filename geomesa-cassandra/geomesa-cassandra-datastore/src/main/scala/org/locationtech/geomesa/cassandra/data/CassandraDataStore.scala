@@ -24,7 +24,6 @@ import org.geotools.referencing.crs.DefaultGeographicCRS
 import org.geotools.util.KVP
 import org.joda.time.{DateTime, Seconds, Weeks}
 import org.locationtech.geomesa.cassandra.data.CassandraDataStore.FieldSerializer
-import org.locationtech.geomesa.convert.SimpleFeatureConverter
 import org.locationtech.geomesa.curve.Z3SFC
 import org.locationtech.geomesa.features.ScalaSimpleFeature
 import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType
@@ -162,33 +161,53 @@ class CassandraFeatureStore(entry: ContentEntry) extends ContentFeatureStore(ent
     val (lx, ly, ux, uy) = (re.getMinX, re.getMinY, re.getMaxX, re.getMaxY)
     val (dtgFilters, _) = partitionPrimaryTemporals(decomposeAnd(query.getFilter), contentState.sft)
     val interval = FilterHelper.extractInterval(dtgFilters, contentState.sft.getDtgField)
-    val sew = CassandraPrimaryKey.epochWeeks(interval.getStart).getWeeks
-    val eew = CassandraPrimaryKey.epochWeeks(interval.getEnd).getWeeks
+    val startWeek = CassandraPrimaryKey.epochWeeks(interval.getStart)
+    val sew = startWeek.getWeeks
+    val endWeek = CassandraPrimaryKey.epochWeeks(interval.getEnd)
+    val eew = endWeek.getWeeks
 
     val rows =
-      (sew to eew).flatMap { dt =>
+      (sew to eew).map { dt =>
         val dtshift = dt << 16
 
         val dtg = new DateTime(0).plusWeeks(dt)
         val minz = CassandraPrimaryKey(dtg, re.getMinX, re.getMinY)
         val maxz = CassandraPrimaryKey(dtg, re.getMaxX, re.getMaxY)
 
+        val seconds =
+          if(dt != sew && dt != eew) {
+            (0, CassandraPrimaryKey.ONE_WEEK_IN_SECONDS)
+          } else {
+            val starts =
+              if(dt == sew) CassandraPrimaryKey.secondsInCurrentWeek(interval.getStart)
+              else 0
+            val ends =
+              if(dt == eew) CassandraPrimaryKey.secondsInCurrentWeek(interval.getEnd)
+              else CassandraPrimaryKey.ONE_WEEK_IN_SECONDS
+            (starts, ends)
+          }
         val zranges = org.locationtech.geomesa.cassandra.data.CassandraPrimaryKey.SFC2D.toRanges(minz.x, minz.y, maxz.x, maxz.y)
-        zranges.flatMap { case (l, u) => (l to u).map { i => (dtshift + i).toInt } }
-      }
-
-    val z3ranges =
-      org.locationtech.geomesa.cassandra.data.CassandraPrimaryKey.SFC3D.ranges((lx, ux), (ly, uy), (0, Weeks.weeks(1).toStandardSeconds.getSeconds))
-
-    val queries =
-      rows.flatMap { r =>
-        z3ranges.map { z =>
-         contentState.geoTimeQuery.bind(r: java.lang.Integer, z._1: java.lang.Long, z._2: java.lang.Long)
-        }
+        val shiftedRanges = zranges.flatMap { case (l, u, _) => (l to u).map { i => (dtshift + i).toInt } }
+        (seconds, shiftedRanges)
       }
 
     val features = contentState.builderPool.withResource { builder =>
-      queries.map { q => contentState.session.executeAsync(q) }.flatMap { f => f.get().iterator().map(r => convertRowToSF(r, builder)) }
+      val futures = rows.flatMap { case ((s, e), rowRanges) =>
+        val z3ranges =
+          org.locationtech.geomesa.cassandra.data.CassandraPrimaryKey.SFC3D.ranges((lx, ux), (ly, uy), (s, e))
+        rowRanges.flatMap { r =>
+          z3ranges.map { case (l, u, contains) =>
+            val q = contentState.geoTimeQuery.bind(r: java.lang.Integer, l: java.lang.Long, u: java.lang.Long)
+            (contains, contentState.session.executeAsync(q))
+          }
+        }
+      }
+      futures.flatMap { case (contains, fut) =>
+        val featureIterator = fut.get().iterator().map { r => convertRowToSF(r, builder) }
+        val filt = query.getFilter
+        if (!contains) featureIterator.filter(f => filt.evaluate(f))
+        else featureIterator
+      }
     }
 
     new DelegateSimpleFeatureReader(contentState.sft, new DelegateSimpleFeatureIterator(features.iterator))
@@ -254,8 +273,9 @@ object CassandraPrimaryKey {
 
   def epochWeeks(dtg: DateTime) = Weeks.weeksBetween(EPOCH, new DateTime(dtg))
 
-  def secondsInCurrentWeek(dtg: DateTime, weeks: Weeks) =
-    Seconds.secondsBetween(EPOCH, dtg).getSeconds - weeks.toStandardSeconds.getSeconds
+  val ONE_WEEK_IN_SECONDS = Weeks.ONE.toStandardSeconds.getSeconds
+  def secondsInCurrentWeek(dtg: DateTime) =
+    Seconds.secondsBetween(EPOCH, dtg).getSeconds - ONE_WEEK_IN_SECONDS
 
   val SFC2D = new ZCurve2D(math.pow(2,5).toInt)
   val SFC3D = new Z3SFC
@@ -296,7 +316,7 @@ class CassandraFeatureWriter(sft: SimpleFeatureType, session: Session) extends F
     val dtg = new DateTime(curFeature.getAttribute(dtgIdx).asInstanceOf[java.util.Date])
     val weeks = CassandraPrimaryKey.epochWeeks(dtg)
 
-    val secondsInWeek = CassandraPrimaryKey.secondsInCurrentWeek(dtg, weeks)
+    val secondsInWeek = CassandraPrimaryKey.secondsInCurrentWeek(dtg)
     val pk = CassandraPrimaryKey(dtg, x, y)
     val z3 = CassandraPrimaryKey.SFC3D.index(x, y, secondsInWeek)
     val z31 = z3.z
