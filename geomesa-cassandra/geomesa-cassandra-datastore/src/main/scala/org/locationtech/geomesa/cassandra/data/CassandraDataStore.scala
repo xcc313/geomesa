@@ -171,8 +171,6 @@ class CassandraFeatureStore(entry: ContentEntry) extends ContentFeatureStore(ent
         val dtshift = dt << 16
 
         val dtg = new DateTime(0).plusWeeks(dt)
-        val minz = CassandraPrimaryKey(dtg, re.getMinX, re.getMinY)
-        val maxz = CassandraPrimaryKey(dtg, re.getMaxX, re.getMaxY)
 
         val seconds =
           if(dt != sew && dt != eew) {
@@ -186,7 +184,7 @@ class CassandraFeatureStore(entry: ContentEntry) extends ContentFeatureStore(ent
               else CassandraPrimaryKey.ONE_WEEK_IN_SECONDS
             (starts, ends)
           }
-        val zranges = org.locationtech.geomesa.cassandra.data.CassandraPrimaryKey.SFC2D.toRanges(minz.x, minz.y, maxz.x, maxz.y)
+        val zranges = org.locationtech.geomesa.cassandra.data.CassandraPrimaryKey.SFC2D.toRanges(lx, ly, ux, uy)
         val shiftedRanges = zranges.flatMap { case (l, u, _) => (l to u).map { i => (dtshift + i).toInt } }
         (seconds, shiftedRanges)
       }
