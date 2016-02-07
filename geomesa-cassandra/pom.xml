@@ -17,7 +17,7 @@
     </modules>
 
     <properties>
-        <cassandra.version>3.0.0-rc1</cassandra.version>
+        <cassandra.version>3.0.0</cassandra.version>
     </properties>
 
     <dependencyManagement>

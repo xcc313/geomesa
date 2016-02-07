@@ -17,7 +17,9 @@ import org.geotools.feature.SchemaException;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.filter.text.cql2.CQLException;
 import org.geotools.filter.text.ecql.ECQL;
+import org.locationtech.geomesa.accumulo.data.tables.AvailableTables;
 import org.locationtech.geomesa.accumulo.index.Constants;
+import org.locationtech.geomesa.utils.geotools.SftBuilder;
 import org.locationtech.geomesa.utils.geotools.ShapefileIngest;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -31,6 +33,7 @@ import java.util.Map;
 
 public class DocumentationTest {
   public DataStore createDataStore() throws IOException {
+    SimpleFeatureType sft = new SftBuilder().date("dtg", true).point("geom", true).withIndexes(AvailableTables.Z3TableSchemeStr()).build("");
     // build the map of parameters
     Map<String,Serializable> params = new HashMap<String,Serializable>();
     params.put("instanceId", "yourcloud");
