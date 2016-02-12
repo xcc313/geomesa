@@ -177,9 +177,9 @@ class CassandraDataStoreTest  {
 }
 
 object CassandraDataStoreTest {
-  val HOST = "localhost"
-  val PORT = 19142
-  val CP   = s"$HOST:$PORT"
+  var HOST = "localhost"
+  var PORT = 0
+  def CP   = s"$HOST:$PORT"
 
   @BeforeClass
   def startServer() = {
@@ -190,6 +190,8 @@ object CassandraDataStoreTest {
     System.setProperty("cassandra.storagedir", storagedir.getPath)
 
     EmbeddedCassandraServerHelper.startEmbeddedCassandra("cassandra-config.yaml", 30000L)
+    HOST = EmbeddedCassandraServerHelper.getHost
+    PORT = EmbeddedCassandraServerHelper.getRpcPort
     val cluster = new Cluster.Builder().addContactPoints(HOST).withPort(PORT).build()
     val session = cluster.connect()
     val cqlDataLoader = new CQLDataLoader(session)
