@@ -191,7 +191,7 @@ object CassandraDataStoreTest {
 
     EmbeddedCassandraServerHelper.startEmbeddedCassandra("cassandra-config.yaml", 30000L)
     HOST = EmbeddedCassandraServerHelper.getHost
-    PORT = EmbeddedCassandraServerHelper.getRpcPort
+    PORT = EmbeddedCassandraServerHelper.getNativeTransportPort
     val cluster = new Cluster.Builder().addContactPoints(HOST).withPort(PORT).build()
     val session = cluster.connect()
     val cqlDataLoader = new CQLDataLoader(session)
