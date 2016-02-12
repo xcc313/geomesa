@@ -156,7 +156,7 @@
         <profile>
             <id>travis-ci</id>
             <properties>
-                <maven.test.jvmargs>-Djava.net.preferIPv4Stack=true -Duser.timezone=UTC -Xms512m -Xmx3g -XX:MaxPermSize=1g -XX:-UseGCOverheadLimit</maven.test.jvmargs>
+                <maven.test.jvmargs>-Djava.net.preferIPv4Stack=true -Duser.timezone=UTC -Xms512m -Xmx2g -XX:MaxPermSize=1g -XX:-UseGCOverheadLimit</maven.test.jvmargs>
                 <test.fork.count>1</test.fork.count>
                 <test.fork.reuse>false</test.fork.reuse>
             </properties>
