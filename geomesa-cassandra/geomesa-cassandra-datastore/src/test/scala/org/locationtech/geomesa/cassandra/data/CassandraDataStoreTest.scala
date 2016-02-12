@@ -16,133 +16,134 @@ import org.cassandraunit.CQLDataLoader
 import org.cassandraunit.dataset.cql.ClassPathCQLDataSet
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 import org.geotools.data.simple.SimpleFeatureStore
-import org.geotools.data.{Query, DataStore, DataStoreFinder, DataUtilities}
+import org.geotools.data.{DataStore, DataStoreFinder, DataUtilities, Query}
 import org.geotools.factory.CommonFactoryFinder
 import org.geotools.feature.simple.SimpleFeatureBuilder
 import org.geotools.geometry.jts.JTSFactoryFinder
 import org.joda.time.DateTime
-import org.junit._
+import org.junit.runner.RunWith
 import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
+import org.specs2.mutable.Specification
+import org.specs2.runner.JUnitRunner
 
-class CassandraDataStoreTest  {
+@RunWith(classOf[JUnitRunner])
+class CassandraDataStoreTest extends Specification {
 
-  @Test
-  def testDSAccess(): Unit = {
-    val ds = getDataStore
-    Assert.assertNotNull(ds)
+  sequential
+
+  step {
+    CassandraDataStoreTest.startServer()
   }
 
+  "CassandraDataStore" should {
+    "allow access" >> {
+      val ds = getDataStore
+      ds must not(beNull)
+    }
 
-  @Test
-  def testCreateSchema(): Unit = {
-    val ds = getDataStore
-    Assert.assertNotNull(ds)
-    ds.createSchema(SimpleFeatureTypes.createType("test:test", "name:String,age:Int,*geom:Point:srid=4326,dtg:Date"))
-    Assert.assertTrue("Type name is not in the list of typenames", ds.getTypeNames.contains("test"))
-  }
+    "create a schema" >> {
+      val ds = getDataStore
+      ds must not(beNull)
+      ds.createSchema(SimpleFeatureTypes.createType("test:test", "name:String,age:Int,*geom:Point:srid=4326,dtg:Date"))
+      ds.getTypeNames.toSeq must contain("test")
+    }
 
-  @Test(expected = classOf[IllegalArgumentException])
-  def testSchemaWithNoDTG(): Unit = {
-    val ds = getDataStore
-    ds.createSchema(SimpleFeatureTypes.createType("test:nodtg", "name:String,age:Int,*geom:Point:srid=4326"))
-  }
+    "fail if no dtg in schema" >> {
+      val ds = getDataStore
+      val sft = SimpleFeatureTypes.createType("test:nodtg", "name:String,age:Int,*geom:Point:srid=4326")
+      ds.createSchema(sft) must throwA[IllegalArgumentException]
+    }
 
-  @Test(expected = classOf[IllegalArgumentException])
-  def testSchemaWithNonPointGeom(): Unit = {
-    val ds = getDataStore
-    ds.createSchema(SimpleFeatureTypes.createType("test:nodtg", "name:String,age:Int,*geom:Polygon:srid=4326,dtg:Date"))
-  }
+    "fail if non-point geom in schema" >> {
+      val ds = getDataStore
+      val sft = SimpleFeatureTypes.createType("test:nodtg", "name:String,age:Int,*geom:Polygon:srid=4326,dtg:Date")
+      ds.createSchema(sft) must throwA[IllegalArgumentException]
+    }
 
-  @Test
-  def testWrite(): Unit = {
-    val fs = initializeDataStore("testwrite")
-    Assert.assertEquals("Unexpected count of features", fs.getFeatures.features().toList.length, 2)
-  }
+    "write features" >> {
+      val fs = initializeDataStore("testwrite")
+      fs.getFeatures.features().toList must haveLength(2)
+    }
 
-  @Test
-  def testBboxBetweenQuery(): Unit = {
-    val fs = initializeDataStore("testbboxbetweenquery")
+    "run bbox between queries" >> {
+      val fs = initializeDataStore("testbboxbetweenquery")
 
-    val ff = CommonFactoryFinder.getFilterFactory2
-    val filt =
-      ff.and(ff.bbox("geom", -76.0, 34.0, -74.0, 36.0, "EPSG:4326"),
-        ff.between(
-          ff.property("dtg"),
-          ff.literal(new DateTime("2016-01-01T00:00:00.000Z").toDate),
-          ff.literal(new DateTime("2016-01-08T00:00:00.000Z").toDate)))
-
-    Assert.assertEquals("Unexpected count of features", 1, fs.getFeatures(filt).features().toList.length)
-  }
-
-  @Test
-  def testExtraLargeBboxBetweenQuery(): Unit = {
-    val fs = initializeDataStore("testextralargebboxbetweenquery")
-
-    val ff = CommonFactoryFinder.getFilterFactory2
-    val filt =
-      ff.and(ff.bbox("geom", -200.0, -100.0, 200.0, 100.0, "EPSG:4326"),
-        ff.between(
-          ff.property("dtg"),
-          ff.literal(new DateTime("2016-01-01T00:00:00.000Z").toDate),
-          ff.literal(new DateTime("2016-01-01T00:15:00.000Z").toDate)))
-
-    Assert.assertEquals("Unexpected count of features", 1, fs.getFeatures(filt).features().toList.length)
-  }
-
-
-  @Test
-  def testBboxBetweenAndAttributeQuery(): Unit = {
-    import scala.collection.JavaConversions._
-
-    val fs = initializeDataStore("testbboxbetweenandattributequery")
-    val ff = CommonFactoryFinder.getFilterFactory2
-    val filt =
-      ff.and(
-        List(
-          ff.bbox("geom", -76.0, 34.0, -74.0, 39.0, "EPSG:4326"),
+      val ff = CommonFactoryFinder.getFilterFactory2
+      val filt =
+        ff.and(ff.bbox("geom", -76.0, 34.0, -74.0, 36.0, "EPSG:4326"),
           ff.between(
             ff.property("dtg"),
             ff.literal(new DateTime("2016-01-01T00:00:00.000Z").toDate),
-            ff.literal(new DateTime("2016-01-08T00:00:00.000Z").toDate)),
-          ff.equals(ff.property("name"), ff.literal("jane"))
+            ff.literal(new DateTime("2016-01-08T00:00:00.000Z").toDate)))
+
+      fs.getFeatures(filt).features().toList must haveLength(1)
+    }
+
+    "run extra-large bbox between queries" >> {
+      val fs = initializeDataStore("testextralargebboxbetweenquery")
+
+      val ff = CommonFactoryFinder.getFilterFactory2
+      val filt =
+        ff.and(ff.bbox("geom", -200.0, -100.0, 200.0, 100.0, "EPSG:4326"),
+          ff.between(
+            ff.property("dtg"),
+            ff.literal(new DateTime("2016-01-01T00:00:00.000Z").toDate),
+            ff.literal(new DateTime("2016-01-01T00:15:00.000Z").toDate)))
+
+      fs.getFeatures(filt).features().toList must haveLength(1)
+    }
+
+    "run bbox between and attribute queries" >> {
+      import scala.collection.JavaConversions._
+
+      val fs = initializeDataStore("testbboxbetweenandattributequery")
+      val ff = CommonFactoryFinder.getFilterFactory2
+      val filt =
+        ff.and(
+          List(
+            ff.bbox("geom", -76.0, 34.0, -74.0, 39.0, "EPSG:4326"),
+            ff.between(
+              ff.property("dtg"),
+              ff.literal(new DateTime("2016-01-01T00:00:00.000Z").toDate),
+              ff.literal(new DateTime("2016-01-08T00:00:00.000Z").toDate)),
+            ff.equals(ff.property("name"), ff.literal("jane"))
+          )
         )
-      )
-    Assert.assertEquals("Unexpected count of features", 1, fs.getFeatures(filt).features().toList.length)
-  }
+      fs.getFeatures(filt).features().toList must haveLength(1)
+    }
 
-  @Test
-  def testPolyWithinAndDtgBetweenQuery(): Unit = {
-    val fs = initializeDataStore("testpolywithinanddtgbetween")
+    "run poly within and date between queries" >> {
+      val fs = initializeDataStore("testpolywithinanddtgbetween")
 
-    val gf = JTSFactoryFinder.getGeometryFactory
-    val buf = gf.createPoint(new Coordinate(new Coordinate(-75.0, 35.0))).buffer(0.01)
-    val ff = CommonFactoryFinder.getFilterFactory2
-    val filt =
-      ff.and(ff.within(ff.property("geom"), ff.literal(buf)),
-        ff.between(
-          ff.property("dtg"),
-          ff.literal(new DateTime("2016-01-01T00:00:00.000Z").toDate),
-          ff.literal(new DateTime("2016-01-08T00:00:00.000Z").toDate)))
+      val gf = JTSFactoryFinder.getGeometryFactory
+      val buf = gf.createPoint(new Coordinate(new Coordinate(-75.0, 35.0))).buffer(0.01)
+      val ff = CommonFactoryFinder.getFilterFactory2
+      val filt =
+        ff.and(ff.within(ff.property("geom"), ff.literal(buf)),
+          ff.between(
+            ff.property("dtg"),
+            ff.literal(new DateTime("2016-01-01T00:00:00.000Z").toDate),
+            ff.literal(new DateTime("2016-01-08T00:00:00.000Z").toDate)))
 
-    Assert.assertEquals("Unexpected count of features", 1, fs.getFeatures(filt).features().toList.length)
-  }
+      fs.getFeatures(filt).features().toList must haveLength(1)
+    }
 
-  @Test
-  def testCount(): Unit = {
-    val fs = initializeDataStore("testcount")
+    "return correct counts" >> {
+      val fs = initializeDataStore("testcount")
 
-    val gf = JTSFactoryFinder.getGeometryFactory
-    val buf = gf.createPoint(new Coordinate(new Coordinate(-75.0, 35.0))).buffer(0.001)
-    val ff = CommonFactoryFinder.getFilterFactory2
-    val filt =
-      ff.and(ff.within(ff.property("geom"), ff.literal(buf)),
-        ff.between(
-          ff.property("dtg"),
-          ff.literal(new DateTime("2016-01-01T00:00:00.000Z").toDate),
-          ff.literal(new DateTime("2016-01-02T00:00:00.000Z").toDate)))
+      val gf = JTSFactoryFinder.getGeometryFactory
+      val buf = gf.createPoint(new Coordinate(new Coordinate(-75.0, 35.0))).buffer(0.001)
+      val ff = CommonFactoryFinder.getFilterFactory2
+      val filt =
+        ff.and(ff.within(ff.property("geom"), ff.literal(buf)),
+          ff.between(
+            ff.property("dtg"),
+            ff.literal(new DateTime("2016-01-01T00:00:00.000Z").toDate),
+            ff.literal(new DateTime("2016-01-02T00:00:00.000Z").toDate)))
 
-    Assert.assertEquals("Count should be 1", 1, fs.getCount(new Query("testcount", filt)))
+      fs.getCount(new Query("testcount", filt)) mustEqual 1
+    }
   }
 
   def initializeDataStore(tableName: String): SimpleFeatureStore = {
@@ -181,7 +182,6 @@ object CassandraDataStoreTest {
   def port = EmbeddedCassandraServerHelper.getNativeTransportPort
   def CP   = s"$host:$port"
 
-  @BeforeClass
   def startServer() = {
     val storagedir = File.createTempFile("cassandra","sd")
     storagedir.delete()

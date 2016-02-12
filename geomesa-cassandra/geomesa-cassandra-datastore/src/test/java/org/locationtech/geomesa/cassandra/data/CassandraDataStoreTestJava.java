@@ -33,7 +33,8 @@ public class CassandraDataStoreTestJava {
     public void testDataAccess() throws IOException {
         Map<String, ?> params = ImmutableMap.of(
                 CassandraDataStoreParams.CONTACT_POINT().getName() , CassandraDataStoreTest.CP(),
-                CassandraDataStoreParams.KEYSPACE().getName()      , "geomesa_cassandra");
+                CassandraDataStoreParams.KEYSPACE().getName()      , "geomesa_cassandra",
+                CassandraDataStoreParams.NAMESPACE().getName()     , "CassandraDataStoreTestJava");
         DataStore ds = DataStoreFinder.getDataStore(params);
         Assert.assertNotNull("DataStore must not be null", ds);
         ds.createSchema(SimpleFeatureTypes.createType("test", "testjavaaccess", "foo:Int,dtg:Date,*geom:Point:srid=4326"));
