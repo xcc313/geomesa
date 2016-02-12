@@ -24,7 +24,7 @@ class CassandraDataStoreFactory extends AbstractDataStoreFactory {
   override def createDataStore(map: util.Map[String, Serializable]): DataStore = {
     val Array(cp, port) = CONTACT_POINT.lookUp(map).asInstanceOf[String].split(":")
     val ks = KEYSPACE.lookUp(map).asInstanceOf[String]
-    val ns = NAMESPACEP.lookUp(map).asInstanceOf[URI]
+    val ns = NAMESPACE.lookUp(map).asInstanceOf[URI]
     val cluster =
       Cluster.builder()
         .addContactPoint(cp)
@@ -43,13 +43,13 @@ class CassandraDataStoreFactory extends AbstractDataStoreFactory {
 
   override def getDescription: String = "GeoMesa Cassandra Data Store"
 
-  override def getParametersInfo: Array[Param] = Array(CONTACT_POINT, KEYSPACE, NAMESPACEP)
+  override def getParametersInfo: Array[Param] = Array(CONTACT_POINT, KEYSPACE, NAMESPACE)
 }
 
 object CassandraDataStoreParams {
 
   val CONTACT_POINT = new Param("geomesa.cassandra.contact.point"  , classOf[String], "HOST:PORT to Cassandra",   true)
   val KEYSPACE      = new Param("geomesa.cassandra.keyspace"       , classOf[String], "Cassandra Keyspace", true)
-  val NAMESPACEP    = new Param("namespace", classOf[URI], "uri to a the namespace", false, null, new KVP(Parameter.LEVEL, "advanced"))
+  val NAMESPACE     = new Param("namespace", classOf[URI], "uri to a the namespace", false, null, new KVP(Parameter.LEVEL, "advanced"))
 
 }

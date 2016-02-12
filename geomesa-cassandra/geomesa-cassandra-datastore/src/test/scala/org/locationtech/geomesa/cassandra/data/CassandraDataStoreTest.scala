@@ -169,7 +169,7 @@ class CassandraDataStoreTest  {
       Map(
         CassandraDataStoreParams.CONTACT_POINT.getName -> CassandraDataStoreTest.CP,
         CassandraDataStoreParams.KEYSPACE.getName -> "geomesa_cassandra",
-        CassandraDataStoreParams.NAMESPACEP.getName -> "http://geomesa.org"
+        CassandraDataStoreParams.NAMESPACE.getName -> "http://geomesa.org"
       )
     )
   }
@@ -177,9 +177,9 @@ class CassandraDataStoreTest  {
 }
 
 object CassandraDataStoreTest {
-  var HOST = "localhost"
-  var PORT = 0
-  def CP   = s"$HOST:$PORT"
+  def host = EmbeddedCassandraServerHelper.getHost
+  def port = EmbeddedCassandraServerHelper.getNativeTransportPort
+  def CP   = s"$host:$port"
 
   @BeforeClass
   def startServer() = {
@@ -190,13 +190,9 @@ object CassandraDataStoreTest {
     System.setProperty("cassandra.storagedir", storagedir.getPath)
 
     EmbeddedCassandraServerHelper.startEmbeddedCassandra("cassandra-config.yaml", 30000L)
-    HOST = EmbeddedCassandraServerHelper.getHost
-    PORT = EmbeddedCassandraServerHelper.getNativeTransportPort
-    val cluster = new Cluster.Builder().addContactPoints(HOST).withPort(PORT).build()
+    val cluster = new Cluster.Builder().addContactPoints(host).withPort(port).build()
     val session = cluster.connect()
     val cqlDataLoader = new CQLDataLoader(session)
     cqlDataLoader.load(new ClassPathCQLDataSet("init.cql", false, false))
   }
-
-
 }
