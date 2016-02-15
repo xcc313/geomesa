@@ -99,7 +99,7 @@ class CassandraDataStoreTest extends Specification {
     }
 
     "run extra-large bbox between queries" >> {
-      skipped("intermittent failure"
+      skipped("intermittent failure")
       val (ds, fs) = initializeDataStore("testextralargebboxbetweenquery")
 
       val ff = CommonFactoryFinder.getFilterFactory2
