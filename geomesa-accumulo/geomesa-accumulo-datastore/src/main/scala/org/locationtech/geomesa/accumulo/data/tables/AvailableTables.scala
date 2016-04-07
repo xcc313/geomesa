@@ -14,6 +14,7 @@ object AvailableTables {
   val DefaultTables: List[GeoMesaTable] = AllTables
   val DefaultTablesStr: List[String] = AllTables.map(_.suffix)
   val Z3TableSchemeStr: List[String] = List(AttributeTable, RecordTable, Z3Table).map(_.suffix)
+  val Z2TableSchemeStr: List[String] = List(AttributeTable, RecordTable, Z2Table).map(_.suffix)
   
   def toTables(sList: List[String]) = sList.flatMap( s => AvailableTables.AllTables.find(_.suffix == s))
   

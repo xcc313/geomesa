@@ -64,7 +64,8 @@ object AccumuloFeatureWriter extends LazyLogging {
   }
 
   def featureWriter(writers: Seq[(BatchWriter, FeatureToMutations)]): FeatureWriterFn = feature => {
-    // calculate all the mutations first, so that if something fails we won't have a partially written feature
+    // calculate all the muta
+    // tions first, so that if something fails we won't have a partially written feature
     val mutations = writers.map { case (bw, fToM) => (bw, fToM(feature)) }
     mutations.foreach { case (bw, m) => bw.addMutations(m) }
   }
