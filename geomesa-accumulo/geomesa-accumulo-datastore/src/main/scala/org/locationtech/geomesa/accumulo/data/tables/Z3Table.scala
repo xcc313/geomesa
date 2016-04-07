@@ -139,7 +139,19 @@ object Z3Table extends GeoMesaTable {
   // gets week and seconds into that week
   def getWeekAndSeconds(time: Long): (Short, Int) = getWeekAndSeconds(new DateTime(time, DateTimeZone.UTC))
 
-
+  // split(1 byte), week(2 bytes), z value (8 bytes), id (n bytes)
+  private def getPointRowKey(ftw: FeatureToWrite, dtgIndex: Int): Seq[Array[Byte]] = {
+    val split = SPLIT_ARRAYS(ftw.idHash % NUM_SPLITS)
+    val (week, z) = {
+      val dtg = ftw.feature.getAttribute(dtgIndex).asInstanceOf[Date]
+      val time = if (dtg == null) 0 else dtg.getTime
+      val (w, t) = getWeekAndSeconds(time)
+      val geom = ftw.feature.point
+      (w, Z3SFC.index(geom.getX, geom.getY, t).z)
+    }
+    val id = ftw.feature.getID.getBytes(Charsets.UTF_8)
+    Seq(Bytes.concat(split, Shorts.toByteArray(week), Longs.toByteArray(z), id))
+  }
 
   // split(1 byte), week (2 bytes), z value (3 bytes), id (n bytes)
   private def getGeomRowKeys(ftw: FeatureToWrite, dtgIndex: Int): Seq[Array[Byte]] = {
