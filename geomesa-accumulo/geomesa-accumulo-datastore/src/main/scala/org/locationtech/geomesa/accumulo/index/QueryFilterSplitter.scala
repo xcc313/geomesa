@@ -96,10 +96,17 @@ class QueryFilterSplitter(sft: SimpleFeatureType) extends LazyLogging {
       val primary = spatial ++ temporal
       val secondary = andOption(attribute ++ others)
       options.append(FilterPlan(Seq(QueryFilter(StrategyType.Z3, primary, secondary))))
-    } else if (supported.contains(SpatioTemporalTable) && spatial.nonEmpty) {
-      val primary = spatial ++ temporal
-      val secondary = andOption(attribute ++ others)
-      options.append(FilterPlan(Seq(QueryFilter(StrategyType.ST, primary, secondary))))
+    } else if (spatial.nonEmpty) {
+      if (supported.contains(Z2Table)) {
+        val primary = spatial
+        val secondary = andOption(temporal ++ attribute ++ others)
+        options.append(FilterPlan(Seq(QueryFilter(StrategyType.Z2, primary, secondary))))
+      } else if (supported.contains(SpatioTemporalTable)) {
+        val primary = spatial ++ temporal
+        val secondary = andOption(attribute ++ others)
+        // noinspection ScalaDeprecation
+        options.append(FilterPlan(Seq(QueryFilter(StrategyType.ST, primary, secondary))))
+      }
     }
 
     // ids
@@ -261,8 +268,9 @@ class QueryFilterSplitter(sft: SimpleFeatureType) extends LazyLogging {
     // Reduce a query filter of OR query of single attr of indexed, high cardinality to
     // FilterPlan with single list of the Attribute-type QueryFilters aka decide the
     // strategy here. This was added as GEOMESA-939 and should be folded into GEOMESA-941
+    // noinspection ScalaDeprecation
     def reduceSingleAttrOr(childOptions: Seq[Seq[FilterPlan]]): Seq[FilterPlan] =
-      Seq(StrategyType.ATTRIBUTE, StrategyType.Z3, StrategyType.ST).map { strat =>
+      Seq(StrategyType.ATTRIBUTE, StrategyType.Z3, StrategyType.Z2, StrategyType.ST).map { strat =>
         childOptions.flatMap { c =>
           c.filter(_.filters.exists(_.strategy == strat)).flatMap(_.filters)
         }
