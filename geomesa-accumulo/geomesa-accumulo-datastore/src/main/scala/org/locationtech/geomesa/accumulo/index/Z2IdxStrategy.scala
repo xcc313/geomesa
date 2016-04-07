@@ -86,7 +86,7 @@ class Z2IdxStrategy(val filter: QueryFilter) extends Strategy with LazyLogging w
         case (None, None) => Seq.empty
         case _ => Seq(KryoLazyFilterTransformIterator.configure(sft, ecql, transforms, fp))
       }
-      (iters, Z2Table.adaptZ2KryoIterator(hints.getReturnSft), Z2Table.FULL_CF, sft.nonPoints)
+      (iters, queryPlanner.defaultKVsToFeatures(hints), Z2Table.FULL_CF, sft.nonPoints)
     }
 
     val z2table = acc.getTableName(sft.getTypeName, Z2Table)

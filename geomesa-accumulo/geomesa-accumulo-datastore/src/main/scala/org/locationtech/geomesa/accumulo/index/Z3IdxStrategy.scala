@@ -118,7 +118,7 @@ class Z3IdxStrategy(val filter: QueryFilter) extends Strategy with LazyLogging w
         case (None, None) => Seq.empty
         case _ => Seq(KryoLazyFilterTransformIterator.configure(sft, ecql, transforms, fp))
       }
-      (iters, Z3Table.adaptZ3KryoIterator(hints.getReturnSft), Z3Table.FULL_CF, sft.nonPoints)
+      (iters, queryPlanner.defaultKVsToFeatures(hints), Z3Table.FULL_CF, sft.nonPoints)
     }
 
     val z3table = acc.getTableName(sft.getTypeName, Z3Table)
