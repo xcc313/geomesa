@@ -17,15 +17,15 @@ import org.apache.accumulo.core.conf.Property
 import org.apache.accumulo.core.data.{Mutation, Value}
 import org.apache.hadoop.io.Text
 import org.locationtech.geomesa.accumulo.data.AccumuloFeatureWriter.{FeatureToMutations, FeatureToWrite}
+import org.locationtech.geomesa.accumulo.data.EMPTY_TEXT
+import org.locationtech.geomesa.curve.Z2SFC
 import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType.RichSimpleFeatureType
+import org.locationtech.sfcurve.zorder.Z2
 import org.locationtech.sfcurve.zorder.Z3.ZPrefix
-import org.locationtech.sfcurve.zorder.{Z2, ZCurve2D}
 import org.opengis.feature.simple.SimpleFeatureType
 
 object Z2Table extends GeoMesaTable {
-  import org.locationtech.geomesa.accumulo.data._
 
-  val ZCURVE2D = new ZCurve2D(4096)
   val FULL_CF = new Text("F")
   val BIN_CF = new Text("B")
   val EMPTY_BYTES = Array.empty[Byte]
@@ -43,9 +43,8 @@ object Z2Table extends GeoMesaTable {
   val GEOM_Z_MASK: Long =
     java.lang.Long.decode("0x" + Array.fill(GEOM_Z_NUM_BYTES)("ff").mkString) << (8 - GEOM_Z_NUM_BYTES) * 8
 
-  // TODO enable nonpoints
   override def supports(sft: SimpleFeatureType): Boolean =
-    sft.isPoints && sft.getGeometryDescriptor != null && sft.getSchemaVersion > 7
+    sft.getGeometryDescriptor != null && sft.getSchemaVersion > 7
 
   override def suffix: String = "z2_idx"
 
@@ -87,7 +86,7 @@ object Z2Table extends GeoMesaTable {
     val split = SPLIT_ARRAYS(ftw.idHash % NUM_SPLITS)
     val id = ftw.feature.getID.getBytes(Charsets.UTF_8)
     val pt = ftw.feature.point
-    val z = ZCURVE2D.toIndex(pt.getX, pt.getY)
+    val z = Z2SFC.index(pt.getX, pt.getY).z
     Seq(Bytes.concat(split, Longs.toByteArray(z), id))
   }
 
@@ -103,7 +102,7 @@ object Z2Table extends GeoMesaTable {
 
   // gets a sequence of z values that cover the geometry
   private def zBox(geom: Geometry): Set[Long] = geom match {
-    case g: Point => Set(ZCURVE2D.toIndex(g.getX, g.getY))
+    case g: Point => Set(Z2SFC.index(g.getX, g.getY).z)
     case g: LineString =>
       // we flatMap bounds for each line segment so we cover a smaller area
       (0 until g.getNumPoints).map(g.getPointN).sliding(2).flatMap { case Seq(one, two) =>
@@ -119,8 +118,8 @@ object Z2Table extends GeoMesaTable {
 
   // gets a sequence of z values that cover the bounding box
   private def zBox(xmin: Double, ymin: Double, xmax: Double, ymax: Double): Set[Long] = {
-    val zmin = ZCURVE2D.toIndex(xmin, ymin)
-    val zmax = ZCURVE2D.toIndex(xmax, ymax)
+    val zmin = Z2SFC.index(xmin, ymin).z
+    val zmax = Z2SFC.index(xmax, ymax).z
     getZPrefixes(zmin, zmax)
   }
 

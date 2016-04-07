@@ -16,18 +16,18 @@ import org.apache.accumulo.core.client.IteratorSetting
 import org.apache.accumulo.core.data.{Key, Value}
 import org.apache.accumulo.core.iterators.{IteratorEnvironment, SortedKeyValueIterator}
 import org.geotools.factory.Hints
-import org.locationtech.geomesa.accumulo.data.tables.Z3Table
+import org.locationtech.geomesa.accumulo.data.tables.Z2Table
 import org.locationtech.geomesa.accumulo.iterators.KryoLazyDensityIterator.DensityResult
-import org.locationtech.geomesa.curve.Z3SFC
+import org.locationtech.geomesa.curve.Z2SFC
 import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType.RichSimpleFeatureType
-import org.locationtech.sfcurve.zorder.Z3
+import org.locationtech.sfcurve.zorder.Z2
 import org.opengis.feature.simple.SimpleFeatureType
 import org.opengis.filter.Filter
 
 /**
- * Density iterator that weights hits based on z3 schema
+ * Density iterator that weights hits based on z2 schema
  */
-class Z3DensityIterator extends KryoLazyDensityIterator {
+class Z2DensityIterator extends KryoLazyDensityIterator {
 
   var normalizeWeight: (Double) => Double = null
   val zBytes = Array.fill[Byte](8)(0)
@@ -60,19 +60,19 @@ class Z3DensityIterator extends KryoLazyDensityIterator {
     case p: Point => writePointToResult(p, weight, result)
     case _ =>
       val row = topKey.getRowData
-      val zOffset = row.offset() + 3 // two for week and 1 for split
+      val zOffset = row.offset() + 1 // 1 for split
       var i = 0
-      while (i < Z3Table.GEOM_Z_NUM_BYTES) {
+      while (i < Z2Table.GEOM_Z_NUM_BYTES) {
         zBytes(i) = row.byteAt(zOffset + i)
         i += 1
       }
-      val (x, y, _) = Z3SFC.invert(Z3(Longs.fromByteArray(zBytes)))
+      val (x, y) = Z2SFC.invert(Z2(Longs.fromByteArray(zBytes)))
       val nWeight = normalizeWeight(weight)
       writePointToResult(x, y, nWeight, result)
   }
 }
 
-object Z3DensityIterator {
+object Z2DensityIterator {
 
     /**
      * Creates an iterator config for the z3 density iterator
