@@ -10,7 +10,7 @@ import org.locationtech.sfcurve.zorder.Z2
 
 class Z2Iterator extends SortedKeyValueIterator[Key, Value] {
 
-  import org.locationtech.geomesa.accumulo.iterators.Z2Iterator.{PointsKey, ZKey}
+  import org.locationtech.geomesa.accumulo.iterators.Z2Iterator.{PointsKey, TableSharingKey, ZKey}
 
   var source: SortedKeyValueIterator[Key, Value] = null
   var zNums: Array[Int] = null
@@ -21,6 +21,7 @@ class Z2Iterator extends SortedKeyValueIterator[Key, Value] {
   var ymax: Int = -1
 
   var isPoints: Boolean = false
+  var isTableSharing: Boolean = false
   var rowToLong: Array[Byte] => Long = null
 
   var topKey: Key = null
@@ -35,13 +36,18 @@ class Z2Iterator extends SortedKeyValueIterator[Key, Value] {
     this.source = source.deepCopy(env)
 
     isPoints = options.get(PointsKey).toBoolean
+    isTableSharing = options.get(TableSharingKey).toBoolean
 
     zNums = options.get(ZKey).split(":").map(_.toInt)
     xmin = zNums(0)
     xmax = zNums(1)
     ymin = zNums(2)
     ymax = zNums(3)
-    rowToLong = rowToLong(if (isPoints) 8 else Z2Table.GEOM_Z_NUM_BYTES)
+
+    // account for shard and table sharing bytes
+    val offset = if (isTableSharing) 2 else 1
+    val numBytes = if (isPoints) 8 else Z2Table.GEOM_Z_NUM_BYTES
+    rowToLong = rowToLong(offset, numBytes)
   }
 
   override def next(): Unit = {
@@ -69,10 +75,13 @@ class Z2Iterator extends SortedKeyValueIterator[Key, Value] {
     x >= xmin && x <= xmax && y >= ymin && y <= ymax
   }
 
-  private def rowToLong(count: Int): (Array[Byte]) => Long = count match {
-    case 3 => (bb) => Longs.fromBytes(bb(3), bb(4), bb(5), 0, 0, 0, 0, 0)
-    case 4 => (bb) => Longs.fromBytes(bb(3), bb(4), bb(5), bb(6), 0, 0, 0, 0)
-    case 8 => (bb) => Longs.fromBytes(bb(3), bb(4), bb(5), bb(6), bb(7), bb(8), bb(9), bb(10))
+  private def rowToLong(offset: Int, count: Int): (Array[Byte]) => Long = {
+    count match {
+      case 3 => (bb) => Longs.fromBytes(bb(offset), bb(offset + 1), bb(offset + 2), 0, 0, 0, 0, 0)
+      case 4 => (bb) => Longs.fromBytes(bb(offset), bb(offset + 1), bb(offset + 2), bb(offset + 3), 0, 0, 0, 0)
+      case 8 => (bb) => Longs.fromBytes(bb(offset), bb(offset + 1), bb(offset + 2), bb(offset + 3), bb(offset + 4),
+                                        bb(offset + 5), bb(offset + 6), bb(offset + 7))
+    }
   }
 
   override def getTopValue: Value = topValue
@@ -87,7 +96,7 @@ class Z2Iterator extends SortedKeyValueIterator[Key, Value] {
   override def deepCopy(env: IteratorEnvironment): SortedKeyValueIterator[Key, Value] = {
     import scala.collection.JavaConversions._
     val iter = new Z2Iterator
-    val opts = Map(PointsKey -> isPoints.toString, ZKey -> zNums.mkString(":"))
+    val opts = Map(PointsKey -> isPoints.toString, TableSharingKey -> isTableSharing.toString, ZKey -> zNums.mkString(":"))
     iter.init(source, opts, env)
     iter
   }
@@ -97,11 +106,13 @@ object Z2Iterator {
 
   val ZKey = "z"
   val PointsKey = "p"
+  val TableSharingKey = "ts"
 
-  def configure(isPoints: Boolean, xmin: Int, xmax: Int, ymin: Int, ymax: Int, priority: Int) = {
+  def configure(isPoints: Boolean, tableSharing: Boolean, xmin: Int, xmax: Int, ymin: Int, ymax: Int, priority: Int) = {
     val is = new IteratorSetting(priority, "z2", classOf[Z2Iterator])
     is.addOption(PointsKey, isPoints.toString)
     is.addOption(ZKey, s"$xmin:$xmax:$ymin:$ymax")
+    is.addOption(TableSharingKey, tableSharing.toString)
     is
   }
 }

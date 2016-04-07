@@ -149,7 +149,9 @@ object Z2Table extends GeoMesaTable {
 
   // reads the feature ID from the row key
   def getIdFromRow(sft: SimpleFeatureType): (Array[Byte]) => String = {
-    val offset = if (sft.isPoints) 11 else 1 + GEOM_Z_NUM_BYTES
+    val length = if (sft.isPoints) 8 else GEOM_Z_NUM_BYTES
+    val prefix = if (sft.isTableSharing) 2 else 1 // shard + table sharing
+    val offset = prefix + length
     (row: Array[Byte]) => new String(row, offset, row.length - offset, Charsets.UTF_8)
   }
 

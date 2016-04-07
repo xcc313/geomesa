@@ -67,7 +67,7 @@ object GeoMesaTable {
       val s = sft.getEnabledTables.toString
       if (s.nonEmpty) AvailableTables.toTables(s.split(",").toList) else AvailableTables.AllTables
     }
-    Seq(RecordTable, SpatioTemporalTable, AttributeTableV5, AttributeTable, Z3Table)
+    Seq(RecordTable, SpatioTemporalTable, AttributeTableV5, AttributeTable, Z2Table, Z3Table)
       .filter(_.supports(sft))
       .filter(enabled.contains)
   }

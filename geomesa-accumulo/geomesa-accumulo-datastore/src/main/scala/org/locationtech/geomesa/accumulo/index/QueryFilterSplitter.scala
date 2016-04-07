@@ -96,7 +96,8 @@ class QueryFilterSplitter(sft: SimpleFeatureType) extends LazyLogging {
       val primary = spatial ++ temporal
       val secondary = andOption(attribute ++ others)
       options.append(FilterPlan(Seq(QueryFilter(StrategyType.Z3, primary, secondary))))
-    } else if (spatial.nonEmpty) {
+    }
+    if (spatial.nonEmpty) {
       if (supported.contains(Z2Table)) {
         val primary = spatial
         val secondary = andOption(temporal ++ attribute ++ others)

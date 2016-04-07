@@ -29,8 +29,11 @@ import org.opengis.filter.Filter
  */
 class Z2DensityIterator extends KryoLazyDensityIterator {
 
+  import Z2DensityIterator.TableSharingKey
+
   var normalizeWeight: (Double) => Double = null
   val zBytes = Array.fill[Byte](8)(0)
+  var zPrefix: Int = -1
 
   override def init(src: SortedKeyValueIterator[Key, Value],
                     jOptions: jMap[String, String],
@@ -51,6 +54,9 @@ class Z2DensityIterator extends KryoLazyDensityIterator {
         }
       }
     }
+
+    // 1 for split plus optional 1 for table sharing
+    zPrefix = if (jOptions.get(TableSharingKey).toBoolean) 2 else 1
   }
 
   /**
@@ -60,7 +66,7 @@ class Z2DensityIterator extends KryoLazyDensityIterator {
     case p: Point => writePointToResult(p, weight, result)
     case _ =>
       val row = topKey.getRowData
-      val zOffset = row.offset() + 1 // 1 for split
+      val zOffset = row.offset() + zPrefix
       var i = 0
       while (i < Z2Table.GEOM_Z_NUM_BYTES) {
         zBytes(i) = row.byteAt(zOffset + i)
@@ -74,15 +80,18 @@ class Z2DensityIterator extends KryoLazyDensityIterator {
 
 object Z2DensityIterator {
 
-    /**
-     * Creates an iterator config for the z3 density iterator
-     */
-    def configure(sft: SimpleFeatureType,
-                  filter: Option[Filter],
-                  hints: Hints,
-                  priority: Int = KryoLazyDensityIterator.DEFAULT_PRIORITY): IteratorSetting = {
-      val is = KryoLazyDensityIterator.configure(sft, filter, hints, priority)
-      is.setIteratorClass(classOf[Z3DensityIterator].getName)
-      is
-    }
+  val TableSharingKey = "ts"
+
+  /**
+   * Creates an iterator config for the z32density iterator
+   */
+  def configure(sft: SimpleFeatureType,
+                filter: Option[Filter],
+                hints: Hints,
+                priority: Int = KryoLazyDensityIterator.DEFAULT_PRIORITY): IteratorSetting = {
+    val is = KryoLazyDensityIterator.configure(sft, filter, hints, priority)
+    is.setIteratorClass(classOf[Z3DensityIterator].getName)
+    is.addOption(TableSharingKey, sft.isTableSharing.toString)
+    is
+  }
 }

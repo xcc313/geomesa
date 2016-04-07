@@ -127,7 +127,7 @@ class Z2IdxStrategy(val filter: QueryFilter) extends Strategy with LazyLogging w
     val (xmin, ymin) = decode(lx, ly)
     val (xmax, ymax) = decode(ux, uy)
 
-    val zIter = Z2Iterator.configure(sft.isPoints, xmin, xmax, ymin, ymax, Z2IdxStrategy.Z2_ITER_PRIORITY)
+    val zIter = Z2Iterator.configure(sft.isPoints, sft.isTableSharing, xmin, xmax, ymin, ymax, Z2IdxStrategy.Z2_ITER_PRIORITY)
 
     val iters = Seq(zIter) ++ iterators
     BatchScanPlan(z2table, ranges, iters, Seq(colFamily), kvsToFeatures, numThreads, hasDupes)
@@ -164,14 +164,14 @@ object Z2IdxStrategy extends StrategyProvider {
   val FILTERING_ITER_PRIORITY = 25
 
   /**
+    * TODO update description
     * Gets the estimated cost of running the query. Currently, cost is hard-coded to sort between
     * strategies the way we want. Z2 should be more than id lookups (at 1), high-cardinality attributes (at 1)
     * and less than STidx (at 400) and unknown cardinality attributes (at 999).
     *
     * Eventually cost will be computed based on dynamic metadata and the query.
     */
-  override def getCost(filter: QueryFilter, sft: SimpleFeatureType, hints: StrategyHints) =
-    if (filter.primary.length > 1) 200 else 400
+  override def getCost(filter: QueryFilter, sft: SimpleFeatureType, hints: StrategyHints) = 400
 
   def isComplicatedSpatialFilter(f: Filter): Boolean = {
     f match {

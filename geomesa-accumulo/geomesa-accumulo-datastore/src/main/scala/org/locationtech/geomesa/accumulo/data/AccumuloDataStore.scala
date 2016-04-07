@@ -369,6 +369,7 @@ class AccumuloDataStore(val connector: Connector,
   override def getTableName(featureName: String, table: GeoMesaTable): String = {
     val key = table match {
       case RecordTable         => RECORD_TABLE_KEY
+      case Z2Table             => Z2_TABLE_KEY
       case Z3Table             => Z3_TABLE_KEY
       case AttributeTable      => ATTR_IDX_TABLE_KEY
       // noinspection ScalaDeprecation
@@ -389,6 +390,7 @@ class AccumuloDataStore(val connector: Connector,
   override def getSuggestedThreads(featureName: String, table: GeoMesaTable): Int = {
     table match {
       case RecordTable         => config.recordThreads
+      case Z2Table             => config.queryThreads
       case Z3Table             => config.queryThreads
       case AttributeTable      => config.queryThreads
       // noinspection ScalaDeprecation
@@ -551,6 +553,7 @@ class AccumuloDataStore(val connector: Connector,
     val attributesValue             = SimpleFeatureTypes.encodeType(sft)
     val dtgValue: Option[String]    = sft.getDtgField // this will have already been checked and set
     val featureEncodingValue        = /*_*/fe.toString/*_*/
+    val z2TableValue                = Z2Table.formatTableName(catalogTable, sft)
     val z3TableValue                = Z3Table.formatTableName(catalogTable, sft)
     val spatioTemporalIdxTableValue = SpatioTemporalTable.formatTableName(catalogTable, sft)
     val attrIdxTableValue           = AttributeTable.formatTableName(catalogTable, sft)
@@ -566,6 +569,7 @@ class AccumuloDataStore(val connector: Connector,
         ATTRIBUTES_KEY        -> attributesValue,
         SCHEMA_KEY            -> spatioTemporalSchemaValue,
         FEATURE_ENCODING_KEY  -> featureEncodingValue,
+        Z2_TABLE_KEY          -> z2TableValue,
         Z3_TABLE_KEY          -> z3TableValue,
         ST_IDX_TABLE_KEY      -> spatioTemporalIdxTableValue,
         ATTR_IDX_TABLE_KEY    -> attrIdxTableValue,
