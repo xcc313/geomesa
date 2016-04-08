@@ -8,11 +8,10 @@
 
 package org.locationtech.geomesa.accumulo
 
-import org.apache.accumulo.core.data.{Key, Value}
+import org.apache.accumulo.core.data.Value
 import org.apache.hadoop.io.Text
 import org.geotools.data.FeatureWriter
 import org.geotools.factory.Hints.ClassKey
-import org.joda.time.{DateTime, Interval}
 import org.locationtech.geomesa.features.SerializationType
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
