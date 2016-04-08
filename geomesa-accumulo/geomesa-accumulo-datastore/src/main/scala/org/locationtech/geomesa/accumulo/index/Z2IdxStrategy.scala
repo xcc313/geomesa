@@ -8,6 +8,8 @@
 
 package org.locationtech.geomesa.accumulo.index
 
+import java.nio.charset.StandardCharsets
+
 import com.google.common.primitives.{Bytes, Longs}
 import com.typesafe.scalalogging.LazyLogging
 import com.vividsolutions.jts.geom.{Geometry, GeometryCollection}
@@ -115,7 +117,13 @@ class Z2IdxStrategy(val filter: QueryFilter) extends Strategy with LazyLogging w
     val getRanges: (Seq[Array[Byte]], (Double, Double), (Double, Double)) => Seq[aRange] =
       if (sft.isPoints) getPointRanges else getGeomRanges
 
-    val ranges = getRanges(Z2Table.SPLIT_ARRAYS, (lx, ux), (ly, uy))
+    val prefixes = if (sft.isTableSharing) {
+      val ts = sft.getTableSharingPrefix.getBytes(StandardCharsets.UTF_8)
+      Z2Table.SPLIT_ARRAYS.map(ts ++ _)
+    } else {
+      Z2Table.SPLIT_ARRAYS
+    }
+    val ranges = getRanges(prefixes, (lx, ux), (ly, uy))
 
     // index space values for comparing in the iterator
     def decode(x: Double, y: Double): (Int, Int) = if (sft.isPoints) {
