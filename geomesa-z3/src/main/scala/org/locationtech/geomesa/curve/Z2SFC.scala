@@ -13,8 +13,8 @@ import org.locationtech.sfcurve.zorder.Z2
 
 object Z2SFC extends SpaceFillingCurve[Z2] {
 
-  private val xprec: Long = math.pow(2, 32).toLong - 1
-  private val yprec: Long = math.pow(2, 32).toLong - 1
+  private val xprec: Long = math.pow(2, 31).toLong - 1
+  private val yprec: Long = math.pow(2, 31).toLong - 1
 
   override val lon  = NormalizedLon(xprec)
   override val lat  = NormalizedLat(yprec)
