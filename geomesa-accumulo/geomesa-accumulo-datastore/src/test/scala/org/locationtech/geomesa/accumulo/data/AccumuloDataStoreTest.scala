@@ -59,32 +59,7 @@ class AccumuloDataStoreTest extends Specification with AccumuloDataStoreDefaults
       val sft = createSchema(sftName)
       ds.getSchema(sftName) mustEqual sft
     }
-    "create and retrieve a schema with a custom IndexSchema" in {
-      val sftName = "schematestCustomSchema"
-      val indexSchema =
-        new IndexSchemaBuilder("~")
-          .randomNumber(3)
-          .indexOrDataFlag()
-          .constant(sftName)
-          .geoHash(0, 3)
-          .date("yyyyMMdd")
-          .nextPart()
-          .geoHash(3, 2)
-          .nextPart()
-          .id()
-          .build()
-      val sft = SimpleFeatureTypes.createType(sftName, defaultSchema)
-      sft.setDtgField("dtg")
-      sft.setStIndexSchema(indexSchema)
-      ds.createSchema(sft)
 
-      val retrievedSft = ds.getSchema(sftName)
-
-      retrievedSft must equalTo(sft)
-      retrievedSft.getDtgField must beSome("dtg")
-      retrievedSft.getStIndexSchema mustEqual indexSchema
-      retrievedSft.getStIndexSchema mustEqual indexSchema
-    }
     "create and retrieve a schema without a geometry" in {
       import org.locationtech.geomesa.utils.geotools.Conversions._
       val sftName = "schematestNoGeom"
@@ -511,13 +486,10 @@ class AccumuloDataStoreTest extends Specification with AccumuloDataStoreDefaults
       val sft3 = createSchema(sftName)
       val filter = CQL.toFilter("bbox(geom, -180, -90, 180, 90) OR bbox(geom, -10, -10, 10, 10)")
       val query = new Query(sftName, filter, Array("geom"))
-      val explain = {
-        val o = new ExplainString
-        ds.getQueryPlan(query, explainer = o)
-        o.toString()
-      }
+      val plans = ds.getQueryPlan(query)
       ds.removeSchema(sftName)
-      explain.split("\n").filter(_.startsWith("Filter:")) mustEqual Seq("Filter: primary filter: INCLUDE, secondary filter: None")
+      plans must haveLength(1)
+      plans.head.iterators must beEmpty
     }.pendingUntilFixed("Fixed query planner to deal with OR'd redundant geom with whole world")
 
     "create key plan that does not use STII when given two bboxes that when unioned are the whole world" in {
