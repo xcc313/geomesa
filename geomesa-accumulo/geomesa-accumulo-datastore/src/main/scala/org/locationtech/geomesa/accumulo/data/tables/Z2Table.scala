@@ -181,7 +181,12 @@ object Z2Table extends GeoMesaTable {
     tableOps.setLocalityGroups(table, localityGroups)
 
     // drop first split, otherwise we get an empty tablet
-    val splits = SPLIT_ARRAYS.drop(1).map(new Text(_)).toSet
+    val splits = if (sft.isTableSharing) {
+      val ts = sft.getTableSharingPrefix.getBytes(StandardCharsets.UTF_8)
+      SPLIT_ARRAYS.drop(1).map(s => new Text(ts ++ s)).toSet
+    } else {
+      SPLIT_ARRAYS.drop(1).map(new Text(_)).toSet
+    }
     val splitsToAdd = splits -- tableOps.listSplits(table).toSet
     if (splitsToAdd.nonEmpty) {
       tableOps.addSplits(table, ImmutableSortedSet.copyOf(splitsToAdd.toIterable))
