@@ -49,7 +49,7 @@ class AccumuloDataStoreQueryTest extends Specification with TestWithMultipleSfts
 
   "AccumuloDataStore" should {
     "return an empty iterator correctly" in {
-      val fs = ds.getFeatureSource(defaultSft.getTypeName).asInstanceOf[AccumuloFeatureStore]
+      val fs = ds.getFeatureSource(defaultSft.getTypeName)
 
       // compose a CQL query that uses a polygon that is disjoint with the feature bounds
       val cqlFilter = CQL.toFilter(s"BBOX(geom, 64.9,68.9,65.1,69.1)")
@@ -165,7 +165,7 @@ class AccumuloDataStoreQueryTest extends Specification with TestWithMultipleSfts
       }
       addFeatures(sft, features)
 
-      val fs = ds.getFeatureSource(sft.getTypeName).asInstanceOf[AccumuloFeatureStore]
+      val fs = ds.getFeatureSource(sft.getTypeName)
 
       val geomFactory = JTSFactoryFinder.getGeometryFactory
       val urq = ff.dwithin(ff.property("geom"),
@@ -249,6 +249,7 @@ class AccumuloDataStoreQueryTest extends Specification with TestWithMultipleSfts
 
       val query = new Query(sft.getTypeName, ECQL.toFilter("BBOX(geom,40,40,50,50)"))
       query.getHints.put(BIN_TRACK_KEY, "name")
+      query.getHints.put(BIN_BATCH_SIZE_KEY, 100)
       val queryPlanner = new QueryPlanner(sft, ds.getFeatureEncoding(sft),
         ds.getIndexSchemaFmt(sft.getTypeName), ds, ds.strategyHints(sft))
       val results = queryPlanner.runQuery(query, Some(StrategyType.Z2)).map(_.getAttribute(BIN_ATTRIBUTE_INDEX)).toSeq
@@ -275,6 +276,7 @@ class AccumuloDataStoreQueryTest extends Specification with TestWithMultipleSfts
 
       val query = new Query(sft.getTypeName, ECQL.toFilter("BBOX(geom,40,40,55,55)"))
       query.getHints.put(BIN_TRACK_KEY, "name")
+      query.getHints.put(BIN_BATCH_SIZE_KEY, 100)
       query.getHints.put(BIN_DTG_KEY, "dtgs")
 
       val bytes = ds.getFeatureSource(sft.getTypeName).getFeatures(query).features().map(_.getAttribute(BIN_ATTRIBUTE_INDEX)).toList
@@ -360,8 +362,8 @@ class AccumuloDataStoreQueryTest extends Specification with TestWithMultipleSfts
       expectStrategy("AttributeIdxStrategy")
 
       query.getHints.remove(QUERY_STRATEGY_KEY)
-      viewParams.put("STRATEGY", "ST")
-      expectStrategy("STIdxStrategy")
+      viewParams.put("STRATEGY", "Z2")
+      expectStrategy("Z2IdxStrategy")
 
       query.getHints.remove(QUERY_STRATEGY_KEY)
       viewParams.put("STRATEGY", "Z3")
@@ -383,7 +385,7 @@ class AccumuloDataStoreQueryTest extends Specification with TestWithMultipleSfts
 
       val explanation = out.toString()
       explanation must not be null
-      explanation.trim must not beEmpty
+      explanation.trim must not(beEmpty)
     }
   }
 }

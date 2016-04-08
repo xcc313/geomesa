@@ -67,16 +67,16 @@ class QueryStrategyDeciderTest extends Specification {
 
   def getRecordStrategy(filterString: String) =
     getStrategyT(filterString, ClassTag(classOf[RecordIdxStrategy]))
-  def getStStrategy(filterString: String) =
-    getStrategyT(filterString, ClassTag(classOf[STIdxStrategy]))
   def getAttributeIdxStrategy(filterString: String) =
     getStrategyT(filterString, ClassTag(classOf[AttributeIdxStrategy]))
+  def getZ2Strategy(filterString: String) =
+    getStrategyT(filterString, ClassTag(classOf[Z2IdxStrategy]))
   def getZ3Strategy(filterString: String) =
     getStrategyT(filterString, ClassTag(classOf[Z3IdxStrategy]))
 
   "Good spatial predicates" should {
     "get the stidx strategy" in {
-      forall(goodSpatialPredicates){ getStStrategy }
+      forall(goodSpatialPredicates){ getZ2Strategy }
     }
   }
 
@@ -293,19 +293,19 @@ class QueryStrategyDeciderTest extends Specification {
 
   "Anded Attribute filters" should {
     "get the STIdx strategy with stIdxStrategyPredicates" in {
-      forall(stIdxStrategyPredicates) { getStStrategy }
+      forall(stIdxStrategyPredicates) { getZ2Strategy }
     }
 
     "get the STIdx strategy with stIdxStrategyPredicates with namespaces" in {
-      forall(stIdxStrategyPredicatesWithNS) { getStStrategy }
+      forall(stIdxStrategyPredicatesWithNS) { getZ2Strategy }
     }
 
     "get the stidx strategy with attributeAndGeometricPredicates" in {
-      forall(attributeAndGeometricPredicates) { getStStrategy }
+      forall(attributeAndGeometricPredicates) { getZ2Strategy }
     }
 
     "get the stidx strategy with attributeAndGeometricPredicates with namespaces" in {
-      forall(attributeAndGeometricPredicatesWithNS) { getStStrategy }
+      forall(attributeAndGeometricPredicatesWithNS) { getZ2Strategy }
     }
 
     "get the record strategy for non-indexed queries" in {
@@ -335,7 +335,7 @@ class QueryStrategyDeciderTest extends Specification {
         "bbox(geom, 35, 59, 45, 70) AND dtg > '2010-05-12T12:00:00.000Z'",
         "bbox(geom, 35, 59, 45, 70) AND dtg >= '2010-05-12T12:00:00.000Z'"
       )
-      forall(predicates) { getStStrategy }
+      forall(predicates) { getZ2Strategy }
     }
 
     "get the attribute strategy with attrIdxStrategyPredicates" in {
@@ -352,8 +352,8 @@ class QueryStrategyDeciderTest extends Specification {
     "respect low cardinality attributes regardless of order" in {
       val attr = "low = 'test'"
       val geom = "BBOX(geom, -10,-10,10,10)"
-      getStrategy(s"$attr AND $geom") must beAnInstanceOf[STIdxStrategy]
-      getStrategy(s"$geom AND $attr") must beAnInstanceOf[STIdxStrategy]
+      getStrategy(s"$attr AND $geom") must beAnInstanceOf[Z2IdxStrategy]
+      getStrategy(s"$geom AND $attr") must beAnInstanceOf[Z2IdxStrategy]
     }
 
     "respect cardinality with multiple attributes" in {

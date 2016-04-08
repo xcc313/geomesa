@@ -32,6 +32,7 @@ import org.opengis.filter.Filter
 
 import scala.collection.JavaConversions._
 
+@deprecated("z2")
 class STIdxStrategy(val filter: QueryFilter) extends Strategy with LazyLogging with IndexFilterHelpers {
 
   override def getQueryPlan(queryPlanner: QueryPlanner, hints: Hints, output: ExplainerOutputType) = {
@@ -243,6 +244,7 @@ class STIdxStrategy(val filter: QueryFilter) extends Strategy with LazyLogging w
   }
 }
 
+@deprecated("z2")
 object STIdxStrategy extends StrategyProvider {
 
   /**

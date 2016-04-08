@@ -215,7 +215,8 @@ object Z3IdxStrategy extends StrategyProvider {
    * Eventually cost will be computed based on dynamic metadata and the query.
    */
   override def getCost(filter: QueryFilter, sft: SimpleFeatureType, hints: StrategyHints) =
-    if (filter.primary.length > 1) 200 else 400
+  // TODO check date range and use z2 instead if too big
+    if (filter.primary.length > 1) 200 else 401
 
   def isComplicatedSpatialFilter(f: Filter): Boolean = {
     f match {
