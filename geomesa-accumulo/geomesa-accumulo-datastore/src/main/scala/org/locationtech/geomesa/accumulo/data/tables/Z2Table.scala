@@ -8,7 +8,9 @@
 
 package org.locationtech.geomesa.accumulo.data.tables
 
-import com.google.common.base.Charsets
+
+import java.nio.charset.StandardCharsets
+
 import com.google.common.collect.{ImmutableSet, ImmutableSortedSet}
 import com.google.common.primitives.{Bytes, Longs}
 import com.vividsolutions.jts.geom.{Geometry, GeometryCollection, LineString, Point}
@@ -49,7 +51,9 @@ object Z2Table extends GeoMesaTable {
   override def suffix: String = "z2_idx"
 
   override def writer(sft: SimpleFeatureType): FeatureToMutations = {
-    val getRowKeys: (FeatureToWrite) => Seq[Array[Byte]] = if (sft.isPoints) getPointRowKey else getGeomRowKeys
+    val sharing = sharingPrefix(sft)
+    val getRowKeys: (FeatureToWrite) => Seq[Array[Byte]] =
+      if (sft.isPoints) getPointRowKey(sharing) else getGeomRowKeys(sharing)
 
     (fw: FeatureToWrite) => {
       val rows = getRowKeys(fw)
@@ -65,7 +69,9 @@ object Z2Table extends GeoMesaTable {
   }
 
   override def remover(sft: SimpleFeatureType): FeatureToMutations = {
-    val getRowKeys: (FeatureToWrite) => Seq[Array[Byte]] = if (sft.isPoints) getPointRowKey else getGeomRowKeys
+    val sharing = sharingPrefix(sft)
+    val getRowKeys: (FeatureToWrite) => Seq[Array[Byte]] =
+      if (sft.isPoints) getPointRowKey(sharing) else getGeomRowKeys(sharing)
 
     (fw: FeatureToWrite) => {
       val rows = getRowKeys(fw)
@@ -81,22 +87,22 @@ object Z2Table extends GeoMesaTable {
 
 
   // split(1 byte), z value (8 bytes), id (n bytes)
-  private def getPointRowKey(ftw: FeatureToWrite): Seq[Array[Byte]] = {
+  private def getPointRowKey(tableSharing: Array[Byte])(ftw: FeatureToWrite): Seq[Array[Byte]] = {
     import org.locationtech.geomesa.utils.geotools.Conversions.RichSimpleFeature
     val split = SPLIT_ARRAYS(ftw.idHash % NUM_SPLITS)
-    val id = ftw.feature.getID.getBytes(Charsets.UTF_8)
+    val id = ftw.feature.getID.getBytes(StandardCharsets.UTF_8)
     val pt = ftw.feature.point
     val z = Z2SFC.index(pt.getX, pt.getY).z
-    Seq(Bytes.concat(split, Longs.toByteArray(z), id))
+    Seq(Bytes.concat(tableSharing, split, Longs.toByteArray(z), id))
   }
 
   // split(1 byte), z value (3 bytes), id (n bytes)
-  private def getGeomRowKeys(ftw: FeatureToWrite): Seq[Array[Byte]] = {
+  private def getGeomRowKeys(tableSharing: Array[Byte])(ftw: FeatureToWrite): Seq[Array[Byte]] = {
     val split = SPLIT_ARRAYS(ftw.idHash % NUM_SPLITS)
     val geom = ftw.feature.getDefaultGeometry.asInstanceOf[Geometry]
     val zs = zBox(geom)
-    val id = ftw.feature.getID.getBytes(Charsets.UTF_8)
-    zs.map(z => Bytes.concat(split, Longs.toByteArray(z).take(GEOM_Z_NUM_BYTES), id)).toSeq
+    val id = ftw.feature.getID.getBytes(StandardCharsets.UTF_8)
+    zs.map(z => Bytes.concat(tableSharing, split, Longs.toByteArray(z).take(GEOM_Z_NUM_BYTES), id)).toSeq
   }
 
 
@@ -147,12 +153,22 @@ object Z2Table extends GeoMesaTable {
     out.toSet
   }
 
+  private def sharingPrefix(sft: SimpleFeatureType): Array[Byte] = {
+    val sharing = if (sft.isTableSharing) {
+      sft.getTableSharingPrefix.getBytes(StandardCharsets.UTF_8)
+    } else {
+      Array.empty[Byte]
+    }
+    require(sharing.length < 2, s"Expecting only a single byte for table sharing, got ${sft.getTableSharingPrefix}")
+    sharing
+  }
+
   // reads the feature ID from the row key
   def getIdFromRow(sft: SimpleFeatureType): (Array[Byte]) => String = {
     val length = if (sft.isPoints) 8 else GEOM_Z_NUM_BYTES
     val prefix = if (sft.isTableSharing) 2 else 1 // shard + table sharing
     val offset = prefix + length
-    (row: Array[Byte]) => new String(row, offset, row.length - offset, Charsets.UTF_8)
+    (row: Array[Byte]) => new String(row, offset, row.length - offset, StandardCharsets.UTF_8)
   }
 
   override def configureTable(sft: SimpleFeatureType, table: String, tableOps: TableOperations): Unit = {
