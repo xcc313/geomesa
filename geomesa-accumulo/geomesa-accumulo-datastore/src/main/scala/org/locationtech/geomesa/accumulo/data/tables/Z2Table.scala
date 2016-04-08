@@ -48,7 +48,7 @@ object Z2Table extends GeoMesaTable {
   override def supports(sft: SimpleFeatureType): Boolean =
     sft.getGeometryDescriptor != null && sft.getSchemaVersion > 7
 
-  override def suffix: String = "z2_idx"
+  override val suffix: String = "z2_idx"
 
   override def writer(sft: SimpleFeatureType): FeatureToMutations = {
     val sharing = sharingPrefix(sft)
