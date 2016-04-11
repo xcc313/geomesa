@@ -124,6 +124,7 @@ case class QueryPlanner(sft: SimpleFeatureType,
     val q = updateFilter(query, sft) // tweak the filter so it meets our expectations going forward
 
     output.pushLevel(s"Planning '${q.getTypeName}' ${filterToString(q.getFilter)}")
+    output(s"Original filter:  ${filterToString(query.getFilter)}")
     output(s"Hints: density[${q.getHints.isDensityQuery}] bin[${q.getHints.isBinQuery}] " +
         s"stats[${q.getHints.isStatsIteratorQuery}] map-aggregate[${q.getHints.isMapAggregatingQuery}]")
     output(s"Sort: ${Option(q.getSortBy).filter(_.nonEmpty).map(_.mkString(", ")).getOrElse("none")}")
