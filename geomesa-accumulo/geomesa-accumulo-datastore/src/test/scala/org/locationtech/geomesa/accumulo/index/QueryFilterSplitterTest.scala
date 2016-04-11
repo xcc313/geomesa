@@ -68,7 +68,7 @@ class QueryFilterSplitterTest extends Specification {
 
     "return for filter include" >> {
       val filter = Filter.INCLUDE
-      val options = splitter.getQueryOptions(Filter.INCLUDE)
+      val options = splitter.getQueryOptions(Filter.INCLUDE, ExplainNull)
       options must haveLength(1)
       options.head.filters must haveLength(1)
       options.head.filters.head.strategy mustEqual StrategyType.Z2
@@ -77,24 +77,24 @@ class QueryFilterSplitterTest extends Specification {
     }
 
     "return none for filter exclude" >> {
-      val options = splitter.getQueryOptions(Filter.EXCLUDE)
+      val options = splitter.getQueryOptions(Filter.EXCLUDE, ExplainNull)
       options must beEmpty
     }
 
     "return none for exclusive anded geoms" >> {
-      val options = splitter.getQueryOptions(and(geom, geom2, dtg))
+      val options = splitter.getQueryOptions(and(geom, geom2, dtg), ExplainNull)
       options must beEmpty
     }.pendingUntilFixed("not implemented")
 
     "return none for exclusive anded dates" >> {
-      val options = splitter.getQueryOptions(and(geom, dtg, dtg2))
+      val options = splitter.getQueryOptions(and(geom, dtg, dtg2), ExplainNull)
       options must beEmpty
     }.pendingUntilFixed("not implemented")
 
     "work for spatio-temporal queries" >> {
       "with a simple and" >> {
         val filter = and(geom, dtg)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         forall(options)(_.filters must haveLength(1))
         options.map(_.filters.head.strategy) must contain(StrategyType.Z2, StrategyType.Z3)
@@ -108,7 +108,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with multiple geometries" >> {
         val filter = and(geom, geom2, dtg)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         forall(options)(_.filters must haveLength(1))
         options.map(_.filters.head.strategy) must contain(StrategyType.Z2, StrategyType.Z3)
@@ -122,7 +122,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with multiple dates" >> {
         val filter = and(geom, dtg, dtgOverlap)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         forall(options)(_.filters must haveLength(1))
         options.map(_.filters.head.strategy) must contain(StrategyType.Z2, StrategyType.Z3)
@@ -136,7 +136,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with multiple geometries and dates" >> {
         val filter = and(geom, geomOverlap, dtg, dtgOverlap)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         forall(options)(_.filters must haveLength(1))
         options.map(_.filters.head.strategy) must contain(StrategyType.Z2, StrategyType.Z3)
@@ -150,7 +150,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with single attribute ors" >> {
         val filter = and(or(geom, geom2), f(dtg))
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         forall(options)(_.filters must haveLength(2))
         options.map(_.filters.map(_.strategy).toSet) must containTheSameElementsAs(Seq(Set(StrategyType.Z2), Set(StrategyType.Z3)))
@@ -167,7 +167,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with multiple attribute ors" >> {
         val filter = or(and(geom, dtg), and(geom2, dtg2))
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         forall(options)(_.filters must haveLength(2))
         options.map(_.filters.map(_.strategy).toSet) must containTheSameElementsAs(Seq(Set(StrategyType.Z2), Set(StrategyType.Z3)))
@@ -184,7 +184,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with spatiotemporal and non-indexed attributes clauses" >> {
         val filter = and(geom, dtg, nonIndexedAttr)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         forall(options)(_.filters must haveLength(1))
         options.map(_.filters.head.strategy) must contain(StrategyType.Z2, StrategyType.Z3)
@@ -198,7 +198,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with spatiotemporal and indexed attributes clauses" >> {
         val filter = and(geom, dtg, indexedAttr)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(3)
         forall(options)(_.filters must haveLength(1))
         options.map(_.filters.head.strategy) must contain(StrategyType.Z2, StrategyType.Z3, StrategyType.ATTRIBUTE)
@@ -215,7 +215,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with spatiotemporal, indexed and non-indexed attributes clauses" >> {
         val filter = and(geom, dtg, indexedAttr, nonIndexedAttr)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(3)
         forall(options)(_.filters must haveLength(1))
         options.map(_.filters.head.strategy) must contain(StrategyType.Z2, StrategyType.Z3, StrategyType.ATTRIBUTE)
@@ -232,7 +232,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with spatiotemporal clauses and non-indexed attributes or" >> {
         val filter = and(f(geom), f(dtg), or(nonIndexedAttr, nonIndexedAttr2))
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         forall(options)(_.filters must haveLength(1))
         options.map(_.filters.head.strategy) must contain(StrategyType.Z2, StrategyType.Z3)
@@ -246,7 +246,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "while ignoring world-covering geoms" >> {
         val filter = f(wholeWorld)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.Z2
@@ -256,7 +256,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "while ignoring world-covering geoms when other filters are present" >> {
         val filter = and(wholeWorld, geom, dtg)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         forall(options)(_.filters must haveLength(1))
         options.map(_.filters.head.strategy) must contain(StrategyType.Z2, StrategyType.Z3)
@@ -272,7 +272,7 @@ class QueryFilterSplitterTest extends Specification {
     "work for single clause filters" >> {
       "spatial" >> {
         val filter = f(geom)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.Z2
@@ -282,7 +282,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "temporal" >> {
         val filter = f(dtg)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.Z3
@@ -292,7 +292,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "non-indexed attributes" >> {
         val filter = f(nonIndexedAttr)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.Z2
@@ -302,7 +302,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "indexed attributes" >> {
         val filter = f(indexedAttr)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.ATTRIBUTE
@@ -312,7 +312,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "low-cardinality attributes" >> {
         val filter = f(lowCardinaltiyAttr)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.ATTRIBUTE
@@ -322,7 +322,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "high-cardinality attributes" >> {
         val filter = f(highCardinaltiyAttr)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.ATTRIBUTE
@@ -334,7 +334,7 @@ class QueryFilterSplitterTest extends Specification {
     "work for simple ands" >> {
       "spatial" >> {
         val filter = and(geom, geom2)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.Z2
@@ -344,7 +344,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "temporal" >> {
         val filter = and(dtg, dtgOverlap)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.Z3
@@ -354,7 +354,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "non-indexed attributes" >> {
         val filter = and(nonIndexedAttr, nonIndexedAttr2)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.Z2
@@ -364,7 +364,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "indexed attributes" >> {
         val filter = and(indexedAttr, indexedAttr2)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.ATTRIBUTE
@@ -374,7 +374,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "low-cardinality attributes" >> {
         val filter = and(lowCardinaltiyAttr, nonIndexedAttr)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(1)
         options.head.filters.head.strategy mustEqual StrategyType.ATTRIBUTE
@@ -386,7 +386,7 @@ class QueryFilterSplitterTest extends Specification {
     "split filters on OR" >> {
       "with spatiotemporal clauses" >> {
         val filter = or(geom, dtg)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(2)
         val z3 = options.head.filters.find(_.strategy == StrategyType.Z3)
@@ -401,7 +401,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with multiple spatial clauses" >> {
         val filter = or(geom, geom2)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(2)
         forall(options.head.filters)(_.strategy mustEqual StrategyType.Z2)
@@ -413,7 +413,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with spatiotemporal and indexed attribute clauses" >> {
         val filter = or(geom, indexedAttr)
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(2)
         options.head.filters.map(_.strategy) must containTheSameElementsAs(Seq(StrategyType.Z2, StrategyType.ATTRIBUTE))
@@ -426,7 +426,7 @@ class QueryFilterSplitterTest extends Specification {
       "and collapse overlapping query filters" >> {
         "with spatiotemporal and non-indexed attribute clauses" >> {
           val filter = or(geom, nonIndexedAttr)
-          val options = splitter.getQueryOptions(filter)
+          val options = splitter.getQueryOptions(filter, ExplainNull)
           options must haveLength(1)
           options.head.filters must haveLength(1)
           options.head.filters.head.strategy mustEqual StrategyType.Z2
@@ -436,7 +436,7 @@ class QueryFilterSplitterTest extends Specification {
 
         "with overlapping geometries" >> {
           val filter = or(geom, geomOverlap)
-          val options = splitter.getQueryOptions(filter)
+          val options = splitter.getQueryOptions(filter, ExplainNull)
           options must haveLength(1)
           options.head.filters must haveLength(1)
           options.head.filters.head.strategy mustEqual StrategyType.Z2
@@ -446,7 +446,7 @@ class QueryFilterSplitterTest extends Specification {
 
         "with overlapping dates" >> {
           val filter = or(dtg, dtgOverlap)
-          val options = splitter.getQueryOptions(filter)
+          val options = splitter.getQueryOptions(filter, ExplainNull)
           options must haveLength(1)
           options.head.filters must haveLength(1)
           options.head.filters.head.strategy mustEqual StrategyType.Z3
@@ -456,7 +456,7 @@ class QueryFilterSplitterTest extends Specification {
 
         "with overlapping geometries and dates" >> {
           val filter = or(and(geom, dtg), and(geomOverlap, dtgOverlap))
-          val options = splitter.getQueryOptions(filter)
+          val options = splitter.getQueryOptions(filter, ExplainNull)
           options must haveLength(1)
           options.head.filters must haveLength(1)
           options.head.filters.head.strategy mustEqual StrategyType.Z3
@@ -469,7 +469,7 @@ class QueryFilterSplitterTest extends Specification {
     "split nested filters" >> {
       "with ANDs" >> {
         val filter = and(f(geom), and(dtg, nonIndexedAttr))
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(2)
         forall(options)(_.filters must haveLength(1))
         options.map(_.filters.head.strategy) must contain(StrategyType.Z2, StrategyType.Z3)
@@ -483,7 +483,7 @@ class QueryFilterSplitterTest extends Specification {
 
       "with ORs" >> {
         val filter = or(f(geom), or(dtg, indexedAttr))
-        val options = splitter.getQueryOptions(filter)
+        val options = splitter.getQueryOptions(filter, ExplainNull)
         options must haveLength(1)
         options.head.filters must haveLength(3)
         options.head.filters.map(_.strategy) must
@@ -499,7 +499,7 @@ class QueryFilterSplitterTest extends Specification {
       val sft = SimpleFeatureTypes.createType("dtgIndex", "dtg:Date:index=full,*geom:Point:srid=4326")
       val splitter = new QueryFilterSplitter(sft)
       val filter = f("dtg TEQUALS 2014-01-01T12:30:00.000Z")
-      val options = splitter.getQueryOptions(filter)
+      val options = splitter.getQueryOptions(filter, ExplainNull)
       options must haveLength(1)
       options.head.filters must haveLength(1)
       options.head.filters.head.strategy mustEqual StrategyType.ATTRIBUTE
@@ -511,7 +511,7 @@ class QueryFilterSplitterTest extends Specification {
       def testHighCard(attrPart: String): MatchResult[Any] = {
         val filterString = s"($attrPart) AND BBOX(geom, 40.0,40.0,50.0,50.0) " +
             "AND dtg DURING 2014-01-01T00:00:00+00:00/2014-01-01T23:59:59+00:00"
-        val options = splitter.getQueryOptions(f(filterString))
+        val options = splitter.getQueryOptions(f(filterString), ExplainNull)
         options must haveLength(3)
 
         forall(options)(_.filters must haveLength(1))

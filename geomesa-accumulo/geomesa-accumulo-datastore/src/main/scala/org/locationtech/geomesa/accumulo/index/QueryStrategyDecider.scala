@@ -12,7 +12,7 @@ import org.geotools.data.Query
 import org.locationtech.geomesa.accumulo.index.Strategy.StrategyType
 import org.locationtech.geomesa.accumulo.index.Strategy.StrategyType.StrategyType
 import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType.RichSimpleFeatureType
-import org.locationtech.geomesa.utils.stats.{MethodProfiling, TimingsImpl}
+import org.locationtech.geomesa.utils.stats.{MethodProfiling, Timing}
 import org.opengis.feature.simple.SimpleFeatureType
 import org.opengis.filter.Filter
 
@@ -53,12 +53,12 @@ object QueryStrategyDecider extends QueryStrategyDecider with MethodProfiling {
                                 requested: Option[StrategyType],
                                 output: ExplainerOutputType): Seq[Strategy] = {
 
-    implicit val timings = new TimingsImpl()
+    implicit val timings = new Timing()
 
     // get the various options that we could potentially use
-    val options = new QueryFilterSplitter(sft).getQueryOptions(query.getFilter)
+    val options = new QueryFilterSplitter(sft).getQueryOptions(query.getFilter, output)
 
-    val selected = profile({
+    val selected = profile {
       if (requested.isDefined) {
         val forced = forceStrategy(options, requested.get, query.getFilter)
         output(s"Filter plan forced to $forced")
@@ -81,8 +81,8 @@ object QueryStrategyDecider extends QueryStrategyDecider with MethodProfiling {
         }
         filterPlan.filters.map(createStrategy(_, sft))
       }
-    }, "cost")
-    output(s"Strategy selection took ${timings.time("cost")}ms for ${options.length} options")
+    }
+    output(s"Strategy selection took ${timings.time}ms for ${options.length} options")
     selected
   }
 

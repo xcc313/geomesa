@@ -10,13 +10,12 @@ package org.locationtech.geomesa.accumulo.index
 
 import com.typesafe.scalalogging.LazyLogging
 import org.geotools.filter.text.ecql.ECQL
-import org.joda.time.DateTimeUtils
 import org.locationtech.geomesa.accumulo.data.tables._
 import org.locationtech.geomesa.accumulo.index.Strategy.StrategyType
 import org.locationtech.geomesa.accumulo.index.Strategy.StrategyType.StrategyType
 import org.locationtech.geomesa.filter._
 import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType.RichSimpleFeatureType
-import org.locationtech.geomesa.utils.stats.MethodProfiling
+import org.locationtech.geomesa.utils.stats.{MethodProfiling, Timing}
 import org.opengis.feature.simple.SimpleFeatureType
 import org.opengis.filter._
 
@@ -59,14 +58,16 @@ class QueryFilterSplitter(sft: SimpleFeatureType) extends MethodProfiling with L
    * note: ors will not be split if they are part of the secondary filter
    *
    */
-  def getQueryOptions(filter: Filter): Seq[FilterPlan] = {
-    val start = DateTimeUtils.currentTimeMillis()
-    val options = rewriteFilterInDNF(filter) match {
-      case o: Or  => getOrQueryOptions(filter, o, rewriteFilterInCNF(filter))
-      case f      => getAndQueryOptions(f)
+  def getQueryOptions(filter: Filter, output: ExplainerOutputType): Seq[FilterPlan] = {
+    implicit val timing = new Timing
+
+    val options = profile {
+      rewriteFilterInDNF(filter) match {
+        case o: Or  => getOrQueryOptions(filter, o, rewriteFilterInCNF(filter))
+        case f      => getAndQueryOptions(f)
+      }
     }
-    logger.debug(s"Query planning for '${filterToString(filter)}' " +
-        s"took ${DateTimeUtils.currentTimeMillis() - start}ms and produced ${options.length} options")
+    output(s"Query processing took ${timing.time}ms and produced ${options.length} options")
     options
   }
 
@@ -96,7 +97,7 @@ class QueryFilterSplitter(sft: SimpleFeatureType) extends MethodProfiling with L
     }
     val (spatial, temporal, attribute, dateAttribute, others) = partitionFilters(validFilters)
 
-    // z2 and STIDX - spatial only queries
+    // z2 and ST - spatial only queries
     if (spatial.nonEmpty) {
       if (supported.contains(Z2Table)) {
         val primary = spatial
