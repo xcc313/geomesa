@@ -23,7 +23,7 @@ class Z2Test extends Specification {
   val maxInt = Z2SFC.lon.precision.toInt
   def nextDim() = rand.nextInt(maxInt)
 
-  def padTo(s: String) = (new String(Array.fill(63)('0')) + s).takeRight(63)
+  def padTo(s: String) = (new String(Array.fill(62)('0')) + s).takeRight(62)
 
   "Z2" should {
 
@@ -77,16 +77,6 @@ class Z2Test extends Specification {
       combined.toInt mustEqual z
     }
 
-//    "support mid" >> {
-//      val (x, y)   = (0, 0)
-//      val (x2, y2) = (2, 2)
-//      Z2(x, y).mid(Z2(x2, y2)) match {
-//        case Z2(midx, midy) =>
-//          midx mustEqual 1
-//          midy mustEqual 1
-//      }
-//    }
-
     "support bigmin" >> {
       val zmin = Z2(2, 2)
       val zmax = Z2(3, 6)
@@ -110,46 +100,6 @@ class Z2Test extends Specification {
           ylow mustEqual 5
       }
     }
-
-//    "support in range" >> {
-//      val (x, y) = (nextDim(), nextDim())
-//      val Z2 = Z2(x, y)
-//      val lessx  = Z2(x - 1, y)
-//      val lessx2 = Z2(x - 2, y)
-//      val lessy  = Z2(x, y - 1)
-//      val lessy2 = Z2(x, y - 2)
-//      val less1  = Z2(x - 1, y - 1)
-//      val less2  = Z2(x - 2, y - 2)
-//      val morex  = Z2(x + 1, y)
-//      val morex2 = Z2(x + 2, y)
-//      val morey  = Z2(x, y + 1)
-//      val more1  = Z2(x + 1, y + 1)
-//
-//      Z2.inRange(lessx, morex) must beTrue
-//      Z2.inRange(lessx, morey) must beTrue
-//      Z2.inRange(lessx, morez) must beTrue
-//      Z2.inRange(lessx, more1) must beTrue
-//
-//      Z2.inRange(lessy, morex) must beTrue
-//      Z2.inRange(lessy, morey) must beTrue
-//      Z2.inRange(lessy, morez) must beTrue
-//      Z2.inRange(lessy, more1) must beTrue
-//
-//      Z2.inRange(lessz, morex) must beTrue
-//      Z2.inRange(lessz, morey) must beTrue
-//      Z2.inRange(lessz, morez) must beTrue
-//      Z2.inRange(lessz, more1) must beTrue
-//
-//      Z2.inRange(less1, more1) must beTrue
-//
-//      Z2.inRange(more1, less1) must beFalse
-//      Z2.inRange(morex, morex2) must beFalse
-//      Z2.inRange(lessx2, lessx) must beFalse
-//      Z2.inRange(lessy2, lessy) must beFalse
-//      Z2.inRange(lessz2, lessx) must beFalse
-//      Z2.inRange(less2, less1) must beFalse
-//      Z2.inRange(less2, more1) must beTrue
-//    }
 
     "calculate ranges" >> {
       val min = Z2(2, 2)
@@ -178,7 +128,7 @@ class Z2Test extends Specification {
         (sfc.index(39.999, 60.999), sfc.index(40.001, 61.001)), // small bounds
         (sfc.index(51.0, 51.0),     sfc.index(51.1, 51.1)),     // small bounds
         (sfc.index(51.0, 51.0),     sfc.index(51.001, 51.001)), // small bounds
-        (Z2(sfc.index(51.0, 51.0).z - 1), Z2(sfc.index(51.0, 51.0).z + 1)) // 62 bits in common
+        (sfc.index(51.0, 51.0),     sfc.index(51.0000001, 51.0000001)) // 60 bits in common
       )
 
       def print(l: Z2, u: Z2, size: Int): Unit =
@@ -188,7 +138,6 @@ class Z2Test extends Specification {
 
       forall(ranges) { r =>
         val ret = Z2.zranges(r._1, r._2)
-        print(r._1, r._2, ret.length)
         ret.length must beGreaterThan(0)
       }
     }
