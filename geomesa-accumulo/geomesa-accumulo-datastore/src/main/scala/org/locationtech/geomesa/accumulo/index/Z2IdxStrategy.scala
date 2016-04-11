@@ -19,6 +19,7 @@ import org.geotools.factory.Hints
 import org.locationtech.geomesa.accumulo.data.tables.Z2Table
 import org.locationtech.geomesa.accumulo.iterators._
 import org.locationtech.geomesa.curve.Z2SFC
+import org.locationtech.geomesa.utils.geotools.WholeWorldPolygon
 import org.locationtech.sfcurve.zorder.Z2
 import org.opengis.feature.simple.SimpleFeatureType
 import org.opengis.filter.Filter
@@ -36,28 +37,41 @@ class Z2IdxStrategy(val filter: QueryFilter) extends Strategy with LazyLogging w
     * Plans the query - strategy implementations need to define this
     */
   override def getQueryPlan(queryPlanner: QueryPlanner, hints: Hints, output: ExplainerOutputType): QueryPlan = {
+
     val sft = queryPlanner.sft
     val acc = queryPlanner.acc
 
-    filter.primary.foreach(f => require(isSpatialFilter(f), s"Expected spatial filters but got ${filterToString(f)}"))
+    val isInclude = QueryFilterSplitter.isFullTableScan(filter)
 
-    output(s"Geometry filters: ${filtersToString(filter.primary)}")
-
-    // standardize the two key query arguments:  polygon and date-range
-    val geomsToCover = tryReduceGeometryFilter(filter.primary).flatMap(decomposeToGeometry)
-
-    val collectionToCover: Geometry = geomsToCover match {
-      case Nil => null
-      case seq: Seq[Geometry] => new GeometryCollection(geomsToCover.toArray, geomsToCover.head.getFactory)
+    if (isInclude) {
+      // allow for full table scans - we use the z2 index for queries that can't be satisfied elsewhere
+      filter.secondary.foreach { f =>
+        logger.warn(s"Running full table scan for schema ${sft.getTypeName} with filter ${filterToString(f)}")
+      }
     }
 
-    val geometryToCover = netGeom(collectionToCover)
+    val geometryToCover = if (isInclude) { WholeWorldPolygon } else {
+      filter.primary.foreach(f => require(isSpatialFilter(f), s"Expected spatial filters but got ${filterToString(f)}"))
+
+      output(s"Geometry filters: ${filtersToString(filter.primary)}")
+
+      // standardize the two key query arguments:  polygon and date-range
+      val geomsToCover = tryReduceGeometryFilter(filter.primary).flatMap(decomposeToGeometry)
+
+      val collectionToCover: Geometry = geomsToCover match {
+        case Nil => null
+        case seq: Seq[Geometry] => new GeometryCollection(geomsToCover.toArray, geomsToCover.head.getFactory)
+      }
+
+      netGeom(collectionToCover)
+    }
 
     output(s"GeomsToCover: $geometryToCover")
 
-    val fp = FILTERING_ITER_PRIORITY
-
-    val ecql: Option[Filter] = if (sft.isPoints) {
+    val ecql: Option[Filter] = if (isInclude || sft.nonPoints) {
+      // for non-point geoms, the index is coarse-grained, so we always apply the full filter
+      filter.filter
+    } else {
       // for normal bboxes, the index is fine enough that we don't need to apply the filter on top of it
       // this may cause some minor errors at extremely fine resolution, but the performance is worth it
       // TODO GEOMESA-1000 add some kind of 'loose bbox' config, a la postgis
@@ -68,9 +82,6 @@ class Z2IdxStrategy(val filter: QueryFilter) extends Strategy with LazyLogging w
         case (None, fs)           => fs
         case (gf, None)           => gf
       }
-    } else {
-      // for non-point geoms, the index is coarse-grained, so we always apply the full filter
-      filter.filter
     }
 
     val (iterators, kvsToFeatures, colFamily, hasDupes) = if (hints.isBinQuery) {
@@ -102,7 +113,7 @@ class Z2IdxStrategy(val filter: QueryFilter) extends Strategy with LazyLogging w
 
       val iters = (ecql, transforms) match {
         case (None, None) => Seq.empty
-        case _ => Seq(KryoLazyFilterTransformIterator.configure(sft, ecql, transforms, fp))
+        case _ => Seq(KryoLazyFilterTransformIterator.configure(sft, ecql, transforms, FILTERING_ITER_PRIORITY))
       }
       (iters, queryPlanner.defaultKVsToFeatures(hints), Z2Table.FULL_CF, sft.nonPoints)
     }
@@ -110,34 +121,45 @@ class Z2IdxStrategy(val filter: QueryFilter) extends Strategy with LazyLogging w
     val z2table = acc.getTableName(sft.getTypeName, Z2Table)
     val numThreads = acc.getSuggestedThreads(sft.getTypeName, Z2Table)
 
-    // setup Z2 iterator
-    val env = geometryToCover.getEnvelopeInternal
-    val (lx, ly, ux, uy) = (env.getMinX, env.getMinY, env.getMaxX, env.getMaxY)
-
-    val getRanges: (Seq[Array[Byte]], (Double, Double), (Double, Double)) => Seq[aRange] =
-      if (sft.isPoints) getPointRanges else getGeomRanges
-
-    val prefixes = if (sft.isTableSharing) {
-      val ts = sft.getTableSharingPrefix.getBytes(StandardCharsets.UTF_8)
-      Z2Table.SPLIT_ARRAYS.map(ts ++ _)
+    val (ranges, z2Iter) = if (isInclude) {
+      val range = if (sft.isTableSharing) {
+        aRange.prefix(new Text(sft.getTableSharingPrefix.getBytes(StandardCharsets.UTF_8)))
+      } else {
+        new aRange()
+      }
+      (Seq(range), None)
     } else {
-      Z2Table.SPLIT_ARRAYS
+      // setup Z2 iterator
+      val env = geometryToCover.getEnvelopeInternal
+      val (lx, ly, ux, uy) = (env.getMinX, env.getMinY, env.getMaxX, env.getMaxY)
+
+      val getRanges: (Seq[Array[Byte]], (Double, Double), (Double, Double)) => Seq[aRange] =
+        if (sft.isPoints) getPointRanges else getGeomRanges
+
+      val prefixes = if (sft.isTableSharing) {
+        val ts = sft.getTableSharingPrefix.getBytes(StandardCharsets.UTF_8)
+        Z2Table.SPLIT_ARRAYS.map(ts ++ _)
+      } else {
+        Z2Table.SPLIT_ARRAYS
+      }
+      val ranges = getRanges(prefixes, (lx, ux), (ly, uy))
+
+      // index space values for comparing in the iterator
+      def decode(x: Double, y: Double): (Int, Int) = if (sft.isPoints) {
+        Z2SFC.index(x, y).decode
+      } else {
+        Z2(Z2SFC.index(x, y).z & Z2Table.GEOM_Z_MASK).decode
+      }
+
+      val (xmin, ymin) = decode(lx, ly)
+      val (xmax, ymax) = decode(ux, uy)
+
+      val zIter = Z2Iterator.configure(sft.isPoints, sft.isTableSharing, xmin, xmax, ymin, ymax, Z2IdxStrategy.Z2_ITER_PRIORITY)
+
+      (ranges, Some(zIter))
     }
-    val ranges = getRanges(prefixes, (lx, ux), (ly, uy))
 
-    // index space values for comparing in the iterator
-    def decode(x: Double, y: Double): (Int, Int) = if (sft.isPoints) {
-      Z2SFC.index(x, y).decode
-    } else {
-      Z2(Z2SFC.index(x, y).z & Z2Table.GEOM_Z_MASK).decode
-    }
-
-    val (xmin, ymin) = decode(lx, ly)
-    val (xmax, ymax) = decode(ux, uy)
-
-    val zIter = Z2Iterator.configure(sft.isPoints, sft.isTableSharing, xmin, xmax, ymin, ymax, Z2IdxStrategy.Z2_ITER_PRIORITY)
-
-    val iters = Seq(zIter) ++ iterators
+    val iters = iterators ++ z2Iter
     BatchScanPlan(z2table, ranges, iters, Seq(colFamily), kvsToFeatures, numThreads, hasDupes)
   }
 
@@ -179,7 +201,8 @@ object Z2IdxStrategy extends StrategyProvider {
     *
     * Eventually cost will be computed based on dynamic metadata and the query.
     */
-  override def getCost(filter: QueryFilter, sft: SimpleFeatureType, hints: StrategyHints) = 400
+  override def getCost(filter: QueryFilter, sft: SimpleFeatureType, hints: StrategyHints) =
+    if (QueryFilterSplitter.isFullTableScan(filter)) Int.MaxValue else 400
 
   def isComplicatedSpatialFilter(f: Filter): Boolean = {
     f match {

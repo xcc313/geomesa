@@ -470,6 +470,7 @@ class AccumuloDataStoreTest extends Specification with AccumuloDataStoreDefaults
       val sft3 = createSchema(sftName)
       val filter = CQL.toFilter("bbox(geom, -190, -100, 190, 100)")
       val query = new Query(sftName, filter, Array("geom"))
+      val qp = ds.getQueryPlan(query)
       val explain = {
         val o = new ExplainString
         ds.getQueryPlan(query, explainer = o)
@@ -477,36 +478,30 @@ class AccumuloDataStoreTest extends Specification with AccumuloDataStoreDefaults
       }
       ds.removeSchema(sftName)
       explain.split("\n").map(_.trim).filter(_.startsWith("Strategy filter:")).toSeq mustEqual
-          Seq("Strategy filter: RECORD[INCLUDE][None]")
+          Seq("Strategy filter: Z2[INCLUDE][None]")
     }
 
     "create key plan that does not use STII when given an or'd geometry query with redundant bbox" in {
-      // Todo: https://geomesa.atlassian.net/browse/GEOMESA-785
       val sftName = "explainLargeBBOXTest4"
       val sft3 = createSchema(sftName)
       val filter = CQL.toFilter("bbox(geom, -180, -90, 180, 90) OR bbox(geom, -10, -10, 10, 10)")
-      val query = new Query(sftName, filter, Array("geom"))
+      val query = new Query(sftName, filter)
       val plans = ds.getQueryPlan(query)
       ds.removeSchema(sftName)
       plans must haveLength(1)
       plans.head.iterators must beEmpty
-    }.pendingUntilFixed("Fixed query planner to deal with OR'd redundant geom with whole world")
+    }
 
     "create key plan that does not use STII when given two bboxes that when unioned are the whole world" in {
       // Todo: https://geomesa.atlassian.net/browse/GEOMESA-785
       val sftName = "explainWhatIsLogicallyTheWholeWorldTest1"
       val sft4 = createSchema(sftName)
       val filter = CQL.toFilter("bbox(geom, -180, -90, 0, 90) OR bbox(geom, 0, -90, 180, 90)")
-      val query = new Query(sftName, filter, Array("geom"))
-      val explain = {
-        val o = new ExplainString
-        ds.getQueryPlan(query, explainer = o)
-        o.toString()
-      }
+      val query = new Query(sftName, filter)
+      val plans = ds.getQueryPlan(query)
       ds.removeSchema(sftName)
-      explain must not contain("STII Filter: [ geom bbox ")
-      explain must contain("No STII Filter")
-      explain must contain("Filter: AcceptEverythingFilter")
+      plans must haveLength(1)
+      plans.head.iterators must beEmpty
     }.pendingUntilFixed("Fixed query planner to deal with OR'd whole world geometry")
 
     "create key plan correctly with a large bbox and a date range" in {

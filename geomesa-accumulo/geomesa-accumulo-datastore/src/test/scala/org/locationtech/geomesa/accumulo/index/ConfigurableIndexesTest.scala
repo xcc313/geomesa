@@ -93,11 +93,9 @@ class ConfigurableIndexesTest extends Specification {
         val options = splitter.getQueryOptions(filter)
         options must haveLength(1)
         options.head.filters must haveLength(1)
-        options.head.filters.map(_.strategy) must
-          containTheSameElementsAs(Seq(StrategyType.RECORD))
-        options.head.filters.map(_.primary) must
-          containTheSameElementsAs(Seq(Seq(Filter.INCLUDE)))
-        forall(options.head.filters)(_.secondary mustEqual Some(or(or(geom, indexedAttr), dtg)))
+        options.head.filters.head.strategy mustEqual StrategyType.RECORD
+        options.head.filters.head.primary mustEqual Seq(Filter.INCLUDE)
+        options.head.filters.head.secondary must beSome(or(geom, or(dtg, indexedAttr)))
       }
     }
   }

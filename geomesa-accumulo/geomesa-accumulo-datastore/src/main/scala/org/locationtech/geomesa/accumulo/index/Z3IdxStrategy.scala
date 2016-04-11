@@ -217,7 +217,7 @@ object Z3IdxStrategy extends StrategyProvider {
   override def getCost(filter: QueryFilter, sft: SimpleFeatureType, hints: StrategyHints) =
   // TODO check date range and use z2 instead if too big
   // TODO also if very small bbox, z2 has ~10 more bits of lat/lon info
-    if (filter.primary.length > 1) 200 else 401
+    if (filter.primary.exists(isSpatialFilter)) 200 else 401
 
   def isComplicatedSpatialFilter(f: Filter): Boolean = {
     f match {

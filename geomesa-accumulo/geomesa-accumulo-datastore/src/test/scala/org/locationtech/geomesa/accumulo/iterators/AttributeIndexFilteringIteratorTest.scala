@@ -71,12 +71,12 @@ class AttributeIndexFilteringIteratorTest extends Specification with TestWithDat
       forall(List("a", "b", "c", "d")) { letter =>
         // 4 features for this letter
         val leftWildCard = new Query(sftName, ff.like(ff.property("name"),s"%$letter"))
-        checkStrategies(leftWildCard, classOf[RecordIdxStrategy])
+        checkStrategies(leftWildCard, classOf[Z2IdxStrategy])
         fs.getFeatures(leftWildCard).features.size mustEqual 4
 
-        // Double wildcards should be record
+        // Double wildcards should be full table scan
         val doubleWildCard = new Query(sftName, ff.like(ff.property("name"),s"%$letter%"))
-        checkStrategies(doubleWildCard, classOf[RecordIdxStrategy])
+        checkStrategies(doubleWildCard, classOf[Z2IdxStrategy])
         fs.getFeatures(doubleWildCard).features.size mustEqual 4
 
         // should return the 4 features for this letter
@@ -91,11 +91,13 @@ class AttributeIndexFilteringIteratorTest extends Specification with TestWithDat
       val query = new Query(sftName, ECQL.toFilter("name = 'b'"), Array("geom"))
       checkStrategies(query, classOf[AttributeIdxStrategy])
 
+      // full table scan
       val leftWildCard = new Query(sftName, ff.like(ff.property("name"), "%b"), Array("geom"))
-      checkStrategies(leftWildCard, classOf[RecordIdxStrategy])
+      checkStrategies(leftWildCard, classOf[Z2IdxStrategy])
 
+      // full table scan
       val doubleWildCard = new Query(sftName, ff.like(ff.property("name"), "%b%"), Array("geom"))
-      checkStrategies(doubleWildCard, classOf[RecordIdxStrategy])
+      checkStrategies(doubleWildCard, classOf[Z2IdxStrategy])
 
       val rightWildcard = new Query(sftName, ff.like(ff.property("name"), "b%"), Array("geom"))
       checkStrategies(rightWildcard, classOf[AttributeIdxStrategy])

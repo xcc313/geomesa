@@ -73,6 +73,7 @@ class QueryStrategyDeciderTest extends Specification {
     getStrategyT(filterString, ClassTag(classOf[Z2IdxStrategy]))
   def getZ3Strategy(filterString: String) =
     getStrategyT(filterString, ClassTag(classOf[Z3IdxStrategy]))
+  def getFullTableStrategy(filterString: String) = getZ2Strategy(filterString)
 
   "Good spatial predicates" should {
     "get the stidx strategy" in {
@@ -89,8 +90,8 @@ class QueryStrategyDeciderTest extends Specification {
       getAttributeIdxStrategy("ns:attr2 = 'val56'")
     }
 
-    "get the record strategy for non indexed attributes" in {
-      getRecordStrategy("attr1 = 'val56'")
+    "get full table strategy for non indexed attributes" in {
+      getFullTableStrategy("attr1 = 'val56'")
     }
 
     "get the attribute likes strategy" in {
@@ -103,12 +104,12 @@ class QueryStrategyDeciderTest extends Specification {
       getStrategy(fs) must beAnInstanceOf[AttributeIdxStrategy]
     }
 
-    "get the record strategy if attribute non-indexed" in {
-      getRecordStrategy("attr1 ILIKE '2nd1%'")
+    "get full table strategy if attribute non-indexed" in {
+      getFullTableStrategy("attr1 ILIKE '2nd1%'")
     }
 
     "get the record strategy if attribute non-indexed for a namespaced attribute" in {
-      getRecordStrategy("ns:attr1 ILIKE '2nd1%'")
+      getFullTableStrategy("ns:attr1 ILIKE '2nd1%'")
     }
 
     "get the attribute strategy for lte" in {
@@ -246,8 +247,8 @@ class QueryStrategyDeciderTest extends Specification {
   }
 
   "Attribute filters" should {
-    "get the record strategy if not catalog" in {
-      getRecordStrategy("attr1 ILIKE '2nd1%'")
+    "get full table strategy if not catalog" in {
+      getZ2Strategy("attr1 ILIKE '2nd1%'")
     }
   }
 
@@ -286,8 +287,8 @@ class QueryStrategyDeciderTest extends Specification {
       val fs = "attr2 IS NOT NULL"
       getStrategy(fs) must beAnInstanceOf[AttributeIdxStrategy]
     }
-    "get the stidx strategy if attribute is not indexed" in {
-      getRecordStrategy("attr1 IS NOT NULL")
+    "get full table strategy if attribute is not indexed" in {
+      getFullTableStrategy("attr1 IS NOT NULL")
     }
   }
 
@@ -308,8 +309,12 @@ class QueryStrategyDeciderTest extends Specification {
       forall(attributeAndGeometricPredicatesWithNS) { getZ2Strategy }
     }
 
-    "get the record strategy for non-indexed queries" in {
-      forall(idPredicates ++ nonIndexedPredicates) { getRecordStrategy }
+    "get the record table strategy for id queries" in {
+      forall(idPredicates) { getRecordStrategy }
+    }
+
+    "get full table strategy for non-indexed queries" in {
+      forall(nonIndexedPredicates) { getFullTableStrategy }
     }
 
     "get the z3 strategy with spatio-temporal queries" in {
