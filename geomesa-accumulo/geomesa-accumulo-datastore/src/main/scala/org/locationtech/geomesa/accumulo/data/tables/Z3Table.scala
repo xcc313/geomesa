@@ -27,8 +27,6 @@ import org.locationtech.geomesa.features.kryo.KryoFeatureSerializer
 import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.utils.geotools.RichSimpleFeatureType.RichSimpleFeatureType
 import org.locationtech.geomesa.utils.index.VisibilityLevel
-import org.locationtech.sfcurve.zorder.Z3
-import org.locationtech.sfcurve.zorder.Z3.ZPrefix
 import org.opengis.feature.simple.SimpleFeatureType
 
 import scala.collection.JavaConversions._
@@ -52,6 +50,8 @@ object Z3Table extends GeoMesaTable {
   val GEOM_Z_NUM_BYTES = 3
   // mask for zeroing the last (8 - GEOM_Z_NUM_BYTES) bytes
   val GEOM_Z_MASK: Long = Long.MaxValue << (64 - 8 * GEOM_Z_NUM_BYTES)
+  // step needed (due to the mask) to bump up the z value for a complex geom
+  val GEOM_Z_STEP: Long = 1L << (64 - 8 * GEOM_Z_NUM_BYTES)
 
   override def supports(sft: SimpleFeatureType): Boolean =
     sft.getDtgField.isDefined && ((sft.getSchemaVersion > 6 && sft.getGeometryDescriptor != null) ||
@@ -205,43 +205,28 @@ object Z3Table extends GeoMesaTable {
       (0 until g.getNumPoints).map(g.getPointN).sliding(2).flatMap { case Seq(one, two) =>
         val (xmin, xmax) = minMax(one.getX, two.getX)
         val (ymin, ymax) = minMax(one.getY, two.getY)
-        zBox(xmin, ymin, xmax, ymax, t)
+        getZPrefixes(xmin, ymin, xmax, ymax, t)
       }.toSet
     case g: GeometryCollection => (0 until g.getNumGeometries).toSet.map(g.getGeometryN).flatMap(zBox(_, t))
     case g: Geometry =>
       val env = g.getEnvelopeInternal
-      zBox(env.getMinX, env.getMinY, env.getMaxX, env.getMaxY, t)
-  }
-
-  // gets a sequence of (week, z) values that cover the bounding box
-  private def zBox(xmin: Double, ymin: Double, xmax: Double, ymax: Double, t: Int): Set[Long] = {
-    val zmin = Z3SFC.index(xmin, ymin, t).z
-    val zmax = Z3SFC.index(xmax, ymax, t).z
-    getZPrefixes(zmin, zmax)
+      getZPrefixes(env.getMinX, env.getMinY, env.getMaxX, env.getMaxY, t)
   }
 
   private def minMax(a: Double, b: Double): (Double, Double) = if (a < b) (a, b) else (b, a)
 
-  // gets z values that cover the interval
-  private def getZPrefixes(zmin: Long, zmax: Long): Set[Long] = {
-    val in = scala.collection.mutable.Queue((zmin, zmax))
-    val out = scala.collection.mutable.HashSet.empty[Long]
-
-    while (in.nonEmpty) {
-      val (min, max) = in.dequeue()
-      val ZPrefix(zprefix, zbits) = Z3.longestCommonPrefix(min, max)
-      if (zbits < GEOM_Z_NUM_BYTES * 8) {
-        // divide the range into two smaller ones using tropf litmax/bigmin
-        val (litmax, bigmin) = Z3.zdivide(Z3((min + max) / 2), Z3(min), Z3(max))
-        in.enqueue((min, litmax.z), (bigmin.z, max))
+  // gets z values that cover the bounding box
+  private def getZPrefixes(xmin: Double, ymin: Double, xmax: Double, ymax: Double, t: Long): Set[Long] = {
+    Z3SFC.ranges((xmin, xmax), (ymin, ymax), (t, t), 8 * GEOM_Z_NUM_BYTES).flatMap { range =>
+      val lower = range.lower & GEOM_Z_MASK
+      val upper = range.upper & GEOM_Z_MASK
+      if (lower == upper) {
+        Seq(lower)
       } else {
-        // we've found a prefix that contains our z range
-        // truncate down to the bytes we use so we don't get dupes
-        out.add(zprefix & GEOM_Z_MASK)
+        val count = ((upper - lower) / GEOM_Z_STEP).toInt
+        Seq.tabulate(count)(i => lower + i * GEOM_Z_STEP) :+ upper
       }
-    }
-
-    out.toSet
+    }.toSet
   }
 
   // gets the offset into the row for the id bytes
