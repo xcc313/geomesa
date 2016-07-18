@@ -12,6 +12,8 @@ import org.geotools.feature.simple.SimpleFeatureImpl
 import org.geotools.filter.identity.FeatureIdImpl
 import org.junit.runner.RunWith
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
+import org.specs2.execute.ResultLike
+import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
 import org.springframework.security.authentication.TestingAuthenticationToken
@@ -25,53 +27,71 @@ class VisibilityFilterFunctionTest extends Specification {
   sequential
 
   val testSFT = SimpleFeatureTypes.createType("test", "name:String,*geom:Point:srid=4326")
-  System.setProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY, classOf[TestAuthorizationsProvider].getName)
 
   "VisibilityFilter" should {
 
     "work with simple viz" in {
+      System.setProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY, classOf[TestAuthorizationsProvider].getName)
+      try {
+        val f = new SimpleFeatureImpl(List.empty[AnyRef], testSFT, new FeatureIdImpl(""))
 
-      val f = new SimpleFeatureImpl(List.empty[AnyRef], testSFT, new FeatureIdImpl(""))
+        f.visibility = "ADMIN&USER"
 
-      f.visibility = "ADMIN&USER"
+        val ctx = SecurityContextHolder.createEmptyContext()
+        ctx.setAuthentication(new TestingAuthenticationToken(null, null, "ADMIN", "USER"))
+        SecurityContextHolder.setContext(ctx)
 
-      val ctx = SecurityContextHolder.createEmptyContext()
-      ctx.setAuthentication(new TestingAuthenticationToken(null, null, "ADMIN", "USER"))
-      SecurityContextHolder.setContext(ctx)
-
-      VisibilityFilterFunction.filter.evaluate(f) must beTrue
+        VisibilityFilterFunction.filter.evaluate(f) must beTrue
+      } finally {
+        System.clearProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY)
+      }
     }
 
     "work with no viz on the feature" in {
-      val f = new SimpleFeatureImpl(List.empty[AnyRef], testSFT, new FeatureIdImpl(""))
+      System.setProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY, classOf[TestAuthorizationsProvider].getName)
+      try {
+        val f = new SimpleFeatureImpl(List.empty[AnyRef], testSFT, new FeatureIdImpl(""))
 
-      val ctx = SecurityContextHolder.createEmptyContext()
-      ctx.setAuthentication(new TestingAuthenticationToken(null, null, "ADMIN", "USER"))
-      SecurityContextHolder.setContext(ctx)
+        val ctx = SecurityContextHolder.createEmptyContext()
+        ctx.setAuthentication(new TestingAuthenticationToken(null, null, "ADMIN", "USER"))
+        SecurityContextHolder.setContext(ctx)
 
-      VisibilityFilterFunction.filter.evaluate(f) must beFalse
+        VisibilityFilterFunction.filter.evaluate(f) must beFalse
+      } finally {
+        System.clearProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY)
+      }
     }
 
     "return false when user does not have the right auths" in {
-      val f = new SimpleFeatureImpl(List.empty[AnyRef], testSFT, new FeatureIdImpl(""))
-      f.visibility = "ADMIN&USER"
+      System.setProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY, classOf[TestAuthorizationsProvider].getName)
+      try {
+        val f = new SimpleFeatureImpl(List.empty[AnyRef], testSFT, new FeatureIdImpl(""))
+        f.visibility = "ADMIN&USER"
 
-      val ctx = SecurityContextHolder.createEmptyContext()
-      ctx.setAuthentication(new TestingAuthenticationToken(null, null, "ADMIN"))
-      SecurityContextHolder.setContext(ctx)
+        val ctx = SecurityContextHolder.createEmptyContext()
+        ctx.setAuthentication(new TestingAuthenticationToken(null, null, "ADMIN"))
+        SecurityContextHolder.setContext(ctx)
 
-      VisibilityFilterFunction.filter.evaluate(f) must beFalse
+        VisibilityFilterFunction.filter.evaluate(f) must beFalse
+      } finally {
+        System.clearProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY)
+      }
     }
 
     "return true when dealing with expressions" in {
-      val f = new SimpleFeatureImpl(List.empty[AnyRef], testSFT, new FeatureIdImpl(""))
-      f.visibility = "ADMIN|USER"
+      System.setProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY, classOf[TestAuthorizationsProvider].getName)
+      try {
+        val f = new SimpleFeatureImpl(List.empty[AnyRef], testSFT, new FeatureIdImpl(""))
+        f.visibility = "ADMIN|USER"
 
-      val ctx = SecurityContextHolder.createEmptyContext()
-      ctx.setAuthentication(new TestingAuthenticationToken(null, null, "USER"))
-      SecurityContextHolder.setContext(ctx)
+        val ctx = SecurityContextHolder.createEmptyContext()
+        ctx.setAuthentication(new TestingAuthenticationToken(null, null, "USER"))
+        SecurityContextHolder.setContext(ctx)
 
-      VisibilityFilterFunction.filter.evaluate(f) must beTrue
+        VisibilityFilterFunction.filter.evaluate(f) must beTrue
+      } finally {
+        System.clearProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY)
+      }
     }
 
   }
