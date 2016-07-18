@@ -51,7 +51,7 @@ package object security {
     import scala.collection.JavaConversions._
 
     // if the user specifies an auth provider to use, try to use that impl
-    val authProviderSystemProperty = Option(System.getProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY))
+    val authProviderSystemProperty = Option(System.getProperty(AuthorizationsProvider.AUTH_PROVIDER_SYS_PROPERTY)).map(_.trim).filter(_.length > 0)
 
     // we wrap the authorizations provider in one that will filter based on the max auths configured for this store
     val providers = ServiceRegistry.lookupProviders(classOf[AuthorizationsProvider]).toBuffer
